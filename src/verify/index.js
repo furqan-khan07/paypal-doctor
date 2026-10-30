@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createMockPayPal, MOCK_WEBHOOK_ID } from '../mock-paypal/server.js';
 import { PayPalClient, SANDBOX_BASE, REAL_SANDBOX_BASE } from './paypal-client.js';
-import { ProbeRun } from './probe-run.js';
+import { ProbeRun, AppStartError } from './probe-run.js';
+import { startApp } from './app-runner.js';
 import { PROBES, selectProbe, CANARY_BASE } from './probes.js';
 import { makeWorkRoot, materialize, removeDir } from './workspace.js';
 import { treeAfter } from '../fix/index.js';
@@ -62,18 +63,25 @@ async function runProbe(probe, { dir, config, upstream, mock, workDir, label }) 
     try {
       await probe.run(run);
     } catch (err) {
-      run.check('probe ran to completion', false, err.message);
+      if (err instanceof AppStartError) run.error = err.message;
+      else run.check('probe ran to completion', false, err.message);
     }
   }
   const result = await run.finish();
   return { ...result, probe: probe.id, title: probe.title, ms: Date.now() - started };
 }
 
+function firstError(lines) {
+  const hit = lines.find((l) => /\b(Error|ERR_[A-Z_]+)\b/.test(l));
+  return hit ? hit.trim() : lines.slice(-3).join(' | ') || '(none)';
+}
+
 function classify(before, after, staticCleared) {
   if (!after) return staticCleared ? 'static-only' : 'failed';
+  if (after.error) return 'error';
   if (after.skipped) return 'skipped';
   if (!after.passed) return 'failed';
-  if (before && !before.skipped && !before.passed) return 'verified';
+  if (before && !before.skipped && !before.error && !before.passed) return 'verified';
   return 'fixed';
 }
 
@@ -101,15 +109,23 @@ export async function verifyFindings({ root, report, mode = 'mock', keep = false
       return states[i];
     };
 
+    // Make sure the unpatched app starts at all; otherwise every probe would
+    // "fail" for reasons that have nothing to do with the patches.
+    const smoke = await startApp({ dir: stateDir(0), config, env: { [config.env?.apiBase || 'PAYPAL_API_BASE']: mock.base, [config.env?.clientId || 'PAYPAL_CLIENT_ID']: mock.creds.clientId, [config.env?.clientSecret || 'PAYPAL_CLIENT_SECRET']: mock.creds.clientSecret }, routes: mock.routes, traceFile: path.join(workRoot, 'smoke.jsonl') });
+    await smoke.stop();
+    if (!smoke.ready) {
+      throw new Error(`Could not start the app with "${config.start || 'node server.js'}" in a copy of ${root} (waited for ${config.readyPath || '/'}). Has \`npm install\` been run there? Output: ${firstError(smoke.output())}`);
+    }
+
     for (const f of patched) {
       const i = f.fix.chainIndex;
       const probe = selectProbe(f, config);
       const ctx = { config, upstream, mock, workDir: workRoot };
       log.step(`[${i}/${patched.length}] ${f.ruleId} @ ${f.file}:${f.line}${probe ? ` - probe "${probe.title}"` : ' - static check only'}`);
       const before = probe ? await runProbe(probe, { ...ctx, dir: stateDir(i - 1), label: `${i}-before` }) : null;
-      if (before) log.dim(`    before: ${before.skipped ? `skipped (${before.skipped})` : before.passed ? 'passed (bug not reproduced)' : 'failed - bug reproduced'}`);
+      if (before) log.dim(`    before: ${before.error ? `error (${before.error})` : before.skipped ? `skipped (${before.skipped})` : before.passed ? 'passed (bug not reproduced)' : 'failed - bug reproduced'}`);
       const after = probe ? await runProbe(probe, { ...ctx, dir: stateDir(i), label: `${i}-after` }) : null;
-      if (after) log.dim(`    after:  ${after.skipped ? `skipped (${after.skipped})` : after.passed ? 'passed' : 'FAILED'}`);
+      if (after) log.dim(`    after:  ${after.error ? `error (${after.error})` : after.skipped ? `skipped (${after.skipped})` : after.passed ? 'passed' : 'FAILED'}`);
       const rescan = scanStatic(stateDir(i));
       const staticCleared = !rescan.findings.some((x) => x.key === f.key);
       const status = classify(before, after, staticCleared);
@@ -117,7 +133,7 @@ export async function verifyFindings({ root, report, mode = 'mock', keep = false
       if (after) pushTraffic(after.traffic, { findingId: f.id, phase: 'after', probe: probe.id });
       const strip = (r) => (r ? { ...r, traffic: undefined, requests: r.traffic.length } : null);
       f.verification = { status, mode, probe: probe?.id || null, probeTitle: probe?.title || null, before: strip(before), after: strip(after), staticCleared, at: new Date().toISOString() };
-      const line = { verified: log.ok, fixed: log.ok, 'static-only': log.ok, skipped: log.warn, failed: log.error }[status] || log.info;
+      const line = { verified: log.ok, fixed: log.ok, 'static-only': log.ok, skipped: log.warn, error: log.warn, failed: log.error }[status] || log.info;
       line(`    → ${status}${staticCleared ? '' : ' (static detector still reports it)'}`);
       onFinding?.(f);
     }

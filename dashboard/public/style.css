@@ -129,7 +129,7 @@ input[type="search"]:focus { border-color: var(--accent); }
 .chip { display: inline-block; padding: 2px 9px; border-radius: 6px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.4px; }
 .chip.verified, .chip.fixed, .chip.static-only { background: var(--ok-bg); color: var(--ok); }
 .chip.failed { background: var(--bad-bg); color: var(--bad); }
-.chip.skipped, .chip.not-run, .chip.no-patch { background: var(--warn-bg); color: var(--warn); }
+.chip.skipped, .chip.error, .chip.not-run, .chip.no-patch { background: var(--warn-bg); color: var(--warn); }
 .badge { display: inline-block; padding: 1px 7px; border: 1px solid var(--line); border-radius: 6px; font-size: 11.5px; color: var(--muted); }
 .badge.llm { border-color: var(--accent); color: var(--accent); }
 .status-2 { color: var(--ok); }

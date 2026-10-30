@@ -52,11 +52,12 @@ const gridTheme = agGrid.themeQuartz.withParams({
 const SEV_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
 const sevPill = (s) => `<span class="pill sev-${esc(s)}">${esc(s)}</span>`;
 const verdictOf = (f) => f.verification?.status || (f.fix?.status === 'ready' ? 'not-run' : 'no-patch');
-const VERDICT_LABEL = { verified: 'VERIFIED', fixed: 'FIXED', 'static-only': 'STATIC CHECK', failed: 'FAILED', skipped: 'SKIPPED', 'not-run': 'NOT VERIFIED', 'no-patch': 'NO PATCH' };
+const VERDICT_LABEL = { verified: 'VERIFIED', fixed: 'FIXED', 'static-only': 'STATIC CHECK', failed: 'FAILED', skipped: 'SKIPPED', error: 'APP ERROR', 'not-run': 'NOT VERIFIED', 'no-patch': 'NO PATCH' };
 const chip = (v) => `<span class="chip ${esc(v)}">${VERDICT_LABEL[v] || esc(v)}</span>`;
 
 function phaseCell(result, phase) {
   if (!result) return '<span class="muted">-</span>';
+  if (result.error) return '<span class="dot warn">app error</span>';
   if (result.skipped) return '<span class="dot warn">skipped</span>';
   if (phase === 'before') return result.passed ? '<span class="dot">not reproduced</span>' : '<span class="dot bad">reproduced</span>';
   return result.passed ? '<span class="dot ok">passes</span>' : '<span class="dot bad">fails</span>';
@@ -192,6 +193,7 @@ function diffBlock(diff) {
 
 function checksList(result) {
   if (!result) return '<p class="muted">Not run.</p>';
+  if (result.error) return `<p class="callout">The app did not start: ${esc(result.error)}</p>`;
   if (result.skipped) return `<p class="callout">Skipped: ${esc(result.skipped)}</p>`;
   const items = result.checks.map((c) => {
     const mark = c.passed ? '<span class="mark ok">✓</span>' : c.level === 'must' ? '<span class="mark bad">✗</span>' : '<span class="mark soft">!</span>';

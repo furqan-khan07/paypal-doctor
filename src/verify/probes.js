@@ -327,7 +327,7 @@ export const PROBES = {
       const tok = app.trace().filter(isToken);
       run.check(`the token request uses ${idVar} / ${secretVar} from the environment`, tok.length > 0 && tok.every((x) => header(x, 'authorization') === want), tok.length ? `${tok.length} token request(s)` : 'no token request');
 
-      const bare = await run.app({ useMock: true, env: { [idVar]: null, [secretVar]: null } });
+      const bare = await run.app({ useMock: true, env: { [idVar]: null, [secretVar]: null }, allowNotReady: true });
       if (!bare.ready) {
         run.check('with no credentials configured, nothing built-in is sent to PayPal', true, 'app refused to start without credentials');
         return;

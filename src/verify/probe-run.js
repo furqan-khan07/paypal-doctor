@@ -2,6 +2,8 @@
 import path from 'node:path';
 import { startApp } from './app-runner.js';
 
+export class AppStartError extends Error {}
+
 export class ProbeRun {
   constructor({ dir, config, upstream, mockUpstream, workDir, label }) {
     Object.assign(this, { dir, config, upstream, mockUpstream, workDir, label });
@@ -12,7 +14,7 @@ export class ProbeRun {
     this.upstreamsUsed = new Set();
   }
 
-  async app({ env = {}, faults = [], useMock = false, apiBase } = {}) {
+  async app({ env = {}, faults = [], useMock = false, apiBase, allowNotReady = false } = {}) {
     const up = useMock ? this.mockUpstream : this.upstream;
     const e = this.config.env || {};
     const fullEnv = {
@@ -28,7 +30,13 @@ export class ProbeRun {
     app.index = this.apps.length + 1;
     this.upstreamsUsed.add(up.kind);
     this.apps.push(app);
-    if (!app.ready) this.notes.push(`App did not become ready${app.exited() ? ` (exited with code ${app.exited().code})` : ''}. Last output: ${app.output().slice(-3).join(' | ') || '(none)'}`);
+    if (!app.ready) {
+      const out = app.output();
+      const err = out.find((l) => /\b(Error|ERR_[A-Z_]+)\b/.test(l));
+      const why = `App did not start${app.exited() ? ` (exited with code ${app.exited().code})` : ''}: ${err ? err.trim() : out.slice(-3).join(' | ') || '(no output)'}`;
+      if (!allowNotReady) throw new AppStartError(why);
+      this.notes.push(why);
+    }
     return app;
   }
 
@@ -52,10 +60,11 @@ export class ProbeRun {
       for (const entry of app.trace()) traffic.push({ ...entry, app: app.index, upstream: app.upstream.kind });
     }
     const must = this.checks.filter((c) => c.level === 'must');
-    const passed = !this.skipped && must.length > 0 && must.every((c) => c.passed);
+    const passed = !this.skipped && !this.error && must.length > 0 && must.every((c) => c.passed);
     return {
       passed,
       skipped: this.skipped,
+      error: this.error || null,
       checks: this.checks,
       notes: this.notes,
       upstream: [...this.upstreamsUsed],
