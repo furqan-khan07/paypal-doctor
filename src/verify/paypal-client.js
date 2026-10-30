@@ -4,7 +4,10 @@
 import crypto from 'node:crypto';
 import { redact } from '../env.js';
 
-export const SANDBOX_BASE = 'https://api-m.sandbox.paypal.com';
+export const REAL_SANDBOX_BASE = 'https://api-m.sandbox.paypal.com';
+// Test hook: point "sandbox" mode at another server (e.g. the mock) to
+// exercise the sandbox code path without credentials.
+export const SANDBOX_BASE = process.env.PAYPAL_DOCTOR_SANDBOX_BASE || REAL_SANDBOX_BASE;
 // From PayPal's sandbox card testing page; any future expiry and CVV work.
 export const TEST_CARD = process.env.PAYPAL_DOCTOR_TEST_CARD || '4012888888881881';
 

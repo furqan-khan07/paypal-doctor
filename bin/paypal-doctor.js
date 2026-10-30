@@ -17,6 +17,7 @@ Usage
   paypal-doctor dashboard [--port 4417]      findings dashboard (AG Grid)
   paypal-doctor mock [--port 4455]           run the local PayPal mock on its own
   paypal-doctor status                       which keys are configured (never prints them)
+  paypal-doctor preflight                    check the sandbox app can do what the probes need
 
 Modes
   --mode mock      (default) probes talk to a local PayPal mock; no keys needed
@@ -119,6 +120,11 @@ async function main() {
       const mock = createMockPayPal({ quiet: false });
       const url = await mock.start(Number(args.port) || 4455);
       log.ok(`Mock PayPal API at ${url} (point PAYPAL_API_BASE at it). Ctrl+C to stop.`);
+      break;
+    }
+    case 'preflight': {
+      const { preflight } = await import('../src/preflight.js');
+      if (!(await preflight())) process.exitCode = 1;
       break;
     }
     case 'status': {

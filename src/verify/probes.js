@@ -37,9 +37,13 @@ const isPaid = (run, status) => (run.config.paidStatuses || ['paid']).includes(s
 // the sandbox app.
 async function approve(run, app, orderId, opts) {
   const r = await app.upstream.client.approveWithCard(orderId, opts);
-  if (r.ok) return true;
+  if (r.ok && r.json?.status === 'APPROVED') return true;
+  if (r.ok) {
+    run.skip(`${app.upstream.kind} answered the test-card approval with order status ${r.json?.status} instead of APPROVED (debug id ${r.debugId || 'n/a'}). A 3-D Secure challenge needs a browser; try another test card via PAYPAL_DOCTOR_TEST_CARD.`);
+    return false;
+  }
   const issue = r.json?.details?.[0]?.issue || r.json?.name || '';
-  run.skip(`${app.upstream.kind} would not approve the order with a test card (HTTP ${r.status} ${issue}, debug id ${r.debugId || 'n/a'}). In the sandbox this usually means "Advanced Credit and Debit Card Payments" is off for the app.`);
+  run.skip(`${app.upstream.kind} would not approve the order with a test card (HTTP ${r.status} ${issue}, debug id ${r.debugId || 'n/a'}). In the sandbox this usually means card payments are off for the app - see MORNING.md.`);
   return false;
 }
 

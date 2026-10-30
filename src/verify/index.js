@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createMockPayPal, MOCK_WEBHOOK_ID } from '../mock-paypal/server.js';
-import { PayPalClient, SANDBOX_BASE } from './paypal-client.js';
+import { PayPalClient, SANDBOX_BASE, REAL_SANDBOX_BASE } from './paypal-client.js';
 import { ProbeRun } from './probe-run.js';
 import { PROBES, selectProbe, CANARY_BASE } from './probes.js';
 import { makeWorkRoot, materialize, removeDir } from './workspace.js';
@@ -26,7 +26,7 @@ async function mockUpstream() {
     creds,
     webhookId: MOCK_WEBHOOK_ID,
     client: new PayPalClient({ base, ...creds }),
-    routes: { [SANDBOX_BASE]: base, 'https://api.sandbox.paypal.com': base, [CANARY_BASE]: base, [base]: base },
+    routes: { [REAL_SANDBOX_BASE]: base, 'https://api.sandbox.paypal.com': base, [CANARY_BASE]: base, [base]: base },
     stop: () => mock.stop(),
   };
 }
@@ -46,7 +46,9 @@ async function sandboxUpstream() {
     creds,
     webhookId,
     client,
-    routes: { [CANARY_BASE]: SANDBOX_BASE },
+    routes: SANDBOX_BASE === REAL_SANDBOX_BASE
+      ? { [CANARY_BASE]: SANDBOX_BASE }
+      : { [CANARY_BASE]: SANDBOX_BASE, [SANDBOX_BASE]: SANDBOX_BASE, [REAL_SANDBOX_BASE]: SANDBOX_BASE },
     stop: async () => {},
   };
 }
