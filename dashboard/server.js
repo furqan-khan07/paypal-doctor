@@ -1,7 +1,7 @@
 // Local dashboard: serves the AG Grid UI, the latest report, and can kick off
 // scan / fix / verify runs, streaming the log over server-sent events.
-// Binds to 127.0.0.1 only, and refuses cross-origin POSTs so a random web
-// page can't make it run things.
+// Binds to 127.0.0.1 only, checks the Host header, and refuses cross-origin
+// POSTs, so a random web page can't make it run things.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -66,6 +66,9 @@ export async function startDashboard({ port = 4417, target } = {}) {
       res.end(JSON.stringify(body));
     };
 
+    // Only answer to localhost names (blocks DNS-rebinding tricks), and only
+    // accept POSTs from this page.
+    if (!/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host || '')) return json(403, { error: 'unexpected Host header' });
     if (req.method === 'POST') {
       const origin = req.headers.origin;
       if (origin && origin !== `http://${req.headers.host}`) return json(403, { error: 'cross-origin request refused' });
