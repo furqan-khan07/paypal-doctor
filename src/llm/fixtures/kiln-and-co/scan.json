@@ -1,0 +1,18 @@
+{
+  "key": "scan",
+  "model": "claude-opus-5-5",
+  "handWritten": true,
+  "note": "Written by hand to match what the review pass is expected to return for the demo store, so the demo runs without an API key. Re-record with: paypal-doctor scan demo-store --llm record",
+  "output": {
+    "findings": [
+      {
+        "ruleId": "capture-status-unchecked",
+        "file": "server.js",
+        "line": 85,
+        "evidence": "event.event_type === \"PAYMENT.CAPTURE.PENDING\"",
+        "message": "The webhook handler treats PAYMENT.CAPTURE.PENDING the same as PAYMENT.CAPTURE.COMPLETED and marks the order paid. PENDING means PayPal has not credited the funds yet (eCheck, payment review); the capture can still be denied, and the shop has shipped by then.",
+        "confidence": "high"
+      }
+    ]
+  }
+}

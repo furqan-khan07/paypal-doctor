@@ -1,0 +1,17 @@
+{
+  "key": "fix|capture-status-unchecked|server.js|POST /api/paypal/webhook|1",
+  "model": "claude-opus-5-5",
+  "handWritten": true,
+  "note": "Hand-written stand-in for a model response so the demo runs without an API key. Re-record with --llm record.",
+  "output": {
+    "explanation": "The webhook handler marked an order paid on PAYMENT.CAPTURE.PENDING as well as PAYMENT.CAPTURE.COMPLETED. A pending capture means PayPal has not credited the money yet and it can still be denied. Only COMPLETED marks the order paid now; PENDING records the order as pending until the COMPLETED event arrives.",
+    "edits": [
+      {
+        "file": "server.js",
+        "find": "  if (order && (event.event_type === \"PAYMENT.CAPTURE.COMPLETED\" || event.event_type === \"PAYMENT.CAPTURE.PENDING\")) {\n    order.status = \"paid\";\n    order.captureId = event.resource.id;\n  }",
+        "replace": "  if (order && event.event_type === \"PAYMENT.CAPTURE.COMPLETED\") {\n    order.status = \"paid\";\n    order.captureId = event.resource.id;\n  } else if (order && event.event_type === \"PAYMENT.CAPTURE.PENDING\" && order.status !== \"paid\") {\n    // funds not credited yet - wait for PAYMENT.CAPTURE.COMPLETED\n    order.status = \"pending\";\n    order.captureId = event.resource.id;\n  }"
+      }
+    ],
+    "notes": ""
+  }
+}

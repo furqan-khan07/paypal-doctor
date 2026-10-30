@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PROJECT_ROOT } from './env.js';
 
-export const DOCTOR_DIR = path.join(PROJECT_ROOT, '.doctor');
+export const DOCTOR_DIR = process.env.PAYPAL_DOCTOR_HOME || path.join(PROJECT_ROOT, '.doctor');
 
 export function loadTargetConfig(root) {
   const file = path.join(root, 'paypal-doctor.json');

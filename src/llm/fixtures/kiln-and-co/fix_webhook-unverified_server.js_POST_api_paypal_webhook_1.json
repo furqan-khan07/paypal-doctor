@@ -1,0 +1,32 @@
+{
+  "key": "fix|webhook-unverified|server.js|POST /api/paypal/webhook|1",
+  "model": "claude-opus-5-5",
+  "handWritten": true,
+  "note": "Hand-written stand-in for a model response so the demo runs without an API key. Re-record with --llm record.",
+  "output": {
+    "explanation": "The webhook endpoint trusted whatever JSON was posted to it, so anyone who found the URL could send a fake PAYMENT.CAPTURE.COMPLETED and get an order marked paid. The handler now asks PayPal's verify-webhook-signature endpoint to check the transmission headers against our webhook id, posting the event back exactly as received, and answers 400 without touching the order unless PayPal says SUCCESS.",
+    "edits": [
+      {
+        "file": "server.js",
+        "find": "import { createOrder, captureOrder, refundCapture } from \"./paypal.js\";",
+        "replace": "import { createOrder, captureOrder, refundCapture, verifyWebhookSignature } from \"./paypal.js\";"
+      },
+      {
+        "file": "server.js",
+        "find": "app.use(express.json());",
+        "replace": "// Keep the raw body: webhook verification needs the event exactly as PayPal sent it.\napp.use(\n  express.json({\n    verify: (req, res, buf) => {\n      req.rawBody = buf.toString(\"utf8\");\n    },\n  }),\n);"
+      },
+      {
+        "file": "server.js",
+        "find": "app.post(\"/api/paypal/webhook\", async (req, res) => {\n  const event = req.body;",
+        "replace": "app.post(\"/api/paypal/webhook\", async (req, res) => {\n  let verified = false;\n  try {\n    verified = await verifyWebhookSignature(req.headers, req.rawBody);\n  } catch (error) {\n    console.error(\"Webhook verification failed:\", error);\n  }\n  if (!verified) {\n    return res.sendStatus(400);\n  }\n  const event = req.body;"
+      },
+      {
+        "file": "paypal.js",
+        "find": "async function handleResponse(response) {",
+        "replace": "// Ask PayPal whether a webhook really came from PayPal. The event has to be\n// posted back exactly as received, so the raw body is spliced in as-is.\nexport async function verifyWebhookSignature(headers, rawBody) {\n  const webhookId = process.env.PAYPAL_WEBHOOK_ID;\n  if (!webhookId || !rawBody) return false;\n  const fields = {\n    auth_algo: headers[\"paypal-auth-algo\"],\n    cert_url: headers[\"paypal-cert-url\"],\n    transmission_id: headers[\"paypal-transmission-id\"],\n    transmission_sig: headers[\"paypal-transmission-sig\"],\n    transmission_time: headers[\"paypal-transmission-time\"],\n    webhook_id: webhookId,\n  };\n  if (Object.values(fields).some((v) => !v)) return false;\n  const accessToken = await generateAccessToken();\n  const response = await fetch(`${base}/v1/notifications/verify-webhook-signature`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n    },\n    body: `${JSON.stringify(fields).slice(0, -1)},\"webhook_event\":${rawBody}}`,\n  });\n  const data = await response.json();\n  return data.verification_status === \"SUCCESS\";\n}\n\nasync function handleResponse(response) {"
+      }
+    ],
+    "notes": "Set PAYPAL_WEBHOOK_ID to the id of the webhook subscription in the PayPal developer dashboard."
+  }
+}

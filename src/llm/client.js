@@ -12,7 +12,11 @@ import { loadSecrets, hasAnthropicKey, redact, PROJECT_ROOT } from '../env.js';
 export const MODEL = process.env.PAYPAL_DOCTOR_MODEL || 'claude-opus-5-5';
 export const FIXTURES_ROOT = path.join(PROJECT_ROOT, 'src', 'llm', 'fixtures');
 
-const slug = (s) => s.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').slice(0, 150);
+export const slug = (s) => s.replace(/[^A-Za-z0-9._-]+/g, '_').replace(/_+/g, '_').slice(0, 150);
+
+export function fixturePath(target, key) {
+  return path.join(FIXTURES_ROOT, slug(target), `${slug(key)}.json`);
+}
 
 export function resolveMode(requested = 'auto') {
   if (requested === 'auto') return hasAnthropicKey() ? 'live' : 'replay';

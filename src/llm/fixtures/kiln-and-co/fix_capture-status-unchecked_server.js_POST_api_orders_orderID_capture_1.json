@@ -1,0 +1,17 @@
+{
+  "key": "fix|capture-status-unchecked|server.js|POST /api/orders/:orderID/capture|1",
+  "model": "claude-opus-5-5",
+  "handWritten": true,
+  "note": "Hand-written stand-in for a model response so the demo runs without an API key. Re-record with --llm record.",
+  "output": {
+    "explanation": "The capture route marked the order paid whenever the order-level status was COMPLETED. PayPal reports the order as COMPLETED even when the capture inside it is PENDING (funds not credited yet) or DECLINED. The route now reads purchase_units[0].payments.captures[0].status and only marks the order paid on COMPLETED; PENDING is recorded as pending and anything else as declined.",
+    "edits": [
+      {
+        "file": "server.js",
+        "find": "    const order = orders.get(orderID);\n    if (order && jsonResponse.status === \"COMPLETED\") {\n      order.status = \"paid\";\n      order.captureId = jsonResponse.purchase_units?.[0]?.payments?.captures?.[0]?.id;\n    }",
+        "replace": "    const order = orders.get(orderID);\n    // The order can be COMPLETED while the capture in it is PENDING or DECLINED,\n    // so the capture status is what decides whether we got paid.\n    const capture = jsonResponse.purchase_units?.[0]?.payments?.captures?.[0];\n    if (order && capture) {\n      order.captureId = capture.id;\n      if (capture.status === \"COMPLETED\") order.status = \"paid\";\n      else if (capture.status === \"PENDING\") order.status = \"pending\";\n      else order.status = \"declined\";\n    }"
+      }
+    ],
+    "notes": ""
+  }
+}

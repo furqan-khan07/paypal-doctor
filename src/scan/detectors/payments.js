@@ -130,6 +130,7 @@ function checkPurchaseUnit(ctx, unit, ancestors) {
       const what = kind.kind === 'float' ? 'a JavaScript number' : 'a stringified float';
       ctx.reportAtLocation('amount-formatting', file, value.loc.start.line, {
         message: `${where}.value is ${what} built from ${kind.why || 'number math'}${kind.via ? ` (via ${kind.via.file}:${kind.via.line})` : ''}. Carts like 3 x $0.10 produce "0.30000000000000004", which PayPal rejects with DECIMAL_PRECISION.`,
+        related: kind.via ? [{ file: kind.via.file, line: kind.via.line }] : [],
       });
     } else if (kind.kind.startsWith('fixed:')) {
       const digits = Number(kind.kind.split(':')[1]);

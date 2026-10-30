@@ -1,0 +1,17 @@
+{
+  "key": "fix|missing-request-id|paypal.js|createOrder|1",
+  "model": "claude-opus-5-5",
+  "handWritten": true,
+  "note": "Hand-written stand-in for a model response so the demo runs without an API key. Re-record with --llm record.",
+  "output": {
+    "explanation": "Create order went out without a PayPal-Request-Id, so if the response was lost and the call retried, PayPal would treat it as a new order. Each checkout attempt now sends a fresh UUID as PayPal-Request-Id, which PayPal uses to return the original order for a retried request.",
+    "edits": [
+      {
+        "file": "paypal.js",
+        "find": "  const response = await fetch(`${base}/v2/checkout/orders`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n    },",
+        "replace": "  const response = await fetch(`${base}/v2/checkout/orders`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n      // fresh id per checkout attempt; PayPal dedupes retries of this request on it\n      \"PayPal-Request-Id\": crypto.randomUUID(),\n    },"
+      }
+    ],
+    "notes": ""
+  }
+}

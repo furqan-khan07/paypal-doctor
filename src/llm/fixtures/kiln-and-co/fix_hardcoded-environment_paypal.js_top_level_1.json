@@ -1,0 +1,17 @@
+{
+  "key": "fix|hardcoded-environment|paypal.js|(top level)|1",
+  "model": "claude-opus-5-5",
+  "handWritten": true,
+  "note": "Hand-written stand-in for a model response so the demo runs without an API key. Re-record with --llm record.",
+  "output": {
+    "explanation": "The API host was a string literal pointing at the sandbox, so going live meant editing code, and a production deploy would quietly keep sending buyers to the sandbox. The base URL now comes from PAYPAL_API_BASE and only defaults to the sandbox when it is not set.",
+    "edits": [
+      {
+        "file": "paypal.js",
+        "find": "const base = \"https://api-m.sandbox.paypal.com\";",
+        "replace": "// Sandbox unless PAYPAL_API_BASE says otherwise (https://api-m.paypal.com for live).\nconst base = process.env.PAYPAL_API_BASE || \"https://api-m.sandbox.paypal.com\";"
+      }
+    ],
+    "notes": "Set PAYPAL_API_BASE=https://api-m.paypal.com in production, together with live credentials."
+  }
+}

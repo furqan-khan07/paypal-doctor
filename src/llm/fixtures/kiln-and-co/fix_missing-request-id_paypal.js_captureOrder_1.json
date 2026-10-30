@@ -1,0 +1,17 @@
+{
+  "key": "fix|missing-request-id|paypal.js|captureOrder|1",
+  "model": "claude-opus-5-5",
+  "handWritten": true,
+  "note": "Hand-written stand-in for a model response so the demo runs without an API key. Re-record with --llm record.",
+  "output": {
+    "explanation": "Capture had no PayPal-Request-Id. When the capture response got lost and the buyer's browser retried, PayPal saw a second capture, answered ORDER_ALREADY_CAPTURED, and the shop never recorded a payment it had actually taken. The header is now derived from the order id, so a retried capture gets the original result back.",
+    "edits": [
+      {
+        "file": "paypal.js",
+        "find": "  const response = await fetch(`${base}/v2/checkout/orders/${orderID}/capture`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n    },",
+        "replace": "  const response = await fetch(`${base}/v2/checkout/orders/${orderID}/capture`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n      // derived from the order, so a retried capture returns the original\n      // result instead of ORDER_ALREADY_CAPTURED\n      \"PayPal-Request-Id\": `capture-${orderID}`,\n    },"
+      }
+    ],
+    "notes": ""
+  }
+}
