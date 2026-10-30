@@ -1,0 +1,36 @@
+{
+  "name": "kiln-and-co",
+  "start": "node server.js",
+  "readyPath": "/healthz",
+  "env": {
+    "port": "PORT",
+    "apiBase": "PAYPAL_API_BASE",
+    "clientId": "PAYPAL_CLIENT_ID",
+    "clientSecret": "PAYPAL_CLIENT_SECRET",
+    "webhookId": "PAYPAL_WEBHOOK_ID"
+  },
+  "routes": {
+    "createOrder": "POST /api/orders",
+    "captureOrder": "POST /api/orders/:orderID/capture",
+    "refundOrder": "POST /api/orders/:orderID/refund",
+    "webhook": "POST /api/paypal/webhook",
+    "orderStatus": "GET /api/store-orders/:orderID"
+  },
+  "orderIdField": "id",
+  "statusField": "status",
+  "paidStatuses": ["paid"],
+  "carts": {
+    "standard": {
+      "body": { "cart": [{ "sku": "mug", "name": "Speckled stoneware mug", "price": 18, "quantity": 1 }] },
+      "expect": { "currency_code": "USD", "value": "18.00" }
+    },
+    "tampered": {
+      "body": { "cart": [{ "sku": "mug", "name": "Speckled stoneware mug", "price": 0.01, "quantity": 1 }] },
+      "expect": { "currency_code": "USD", "value": "18.00" }
+    },
+    "fractional": {
+      "body": { "cart": [{ "sku": "sticker", "name": "Die-cut sticker (each)", "price": 0.1, "quantity": 3 }] },
+      "expect": { "currency_code": "USD", "value": "0.30" }
+    }
+  }
+}

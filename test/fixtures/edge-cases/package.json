@@ -1,0 +1,8 @@
+{
+  "name": "edge-cases",
+  "private": true,
+  "dependencies": {
+    "@paypal/checkout-server-sdk": "^1.0.3",
+    "express": "^4.19.0"
+  }
+}

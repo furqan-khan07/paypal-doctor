@@ -10,7 +10,7 @@
     "demo-store"
   ],
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.js",
     "demo": "node bin/paypal-doctor.js run demo-store --mode mock --llm replay --dashboard",
     "demo:real": "node bin/paypal-doctor.js run demo-store --mode sandbox --llm live --dashboard",
     "scan": "node bin/paypal-doctor.js scan",

@@ -1,0 +1,24 @@
+:root { --ink: #2b2620; --muted: #7a6f63; --paper: #faf6f0; --clay: #b5653b; --line: #e7ddd0; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.5 Georgia, "Iowan Old Style", serif; color: var(--ink); background: var(--paper); }
+header { padding: 32px 24px 8px; max-width: 1040px; margin: 0 auto; }
+header h1 { margin: 0; font-size: 34px; letter-spacing: -0.5px; }
+header p { margin: 4px 0 0; color: var(--muted); }
+main { max-width: 1040px; margin: 0 auto; padding: 16px 24px 48px; display: grid; grid-template-columns: 1fr 320px; gap: 24px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+.card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.swatch { height: 120px; border-radius: 8px; background: linear-gradient(135deg, #e9d8c4, #c98b62); }
+.swatch.tote { background: linear-gradient(135deg, #eee7d8, #a8a07f); }
+.swatch.pourover { background: linear-gradient(135deg, #e6e1db, #6f7f86); }
+.swatch.sticker { background: linear-gradient(135deg, #f4e1d6, #d9534f); }
+.card h3 { margin: 0; font-size: 17px; }
+.price { color: var(--muted); }
+button { font: inherit; border: 0; border-radius: 6px; padding: 8px 12px; background: var(--clay); color: #fff; cursor: pointer; }
+button:hover { filter: brightness(1.05); }
+#cart { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 16px; align-self: start; position: sticky; top: 16px; }
+#cart h2 { margin: 0 0 8px; font-size: 20px; }
+#cart ul { list-style: none; padding: 0; margin: 0; }
+#cart li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.total { display: flex; justify-content: space-between; font-weight: bold; }
+.note { color: var(--muted); font-size: 14px; }
+@media (max-width: 760px) { main { grid-template-columns: 1fr; } }
