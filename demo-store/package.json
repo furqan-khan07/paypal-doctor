@@ -1,0 +1,14 @@
+{
+  "name": "demo-store",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A small mug-and-sticker shop with a PayPal checkout. Deliberately buggy: it exists so paypal-doctor has something to fix.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "5.3.0"
+  }
+}

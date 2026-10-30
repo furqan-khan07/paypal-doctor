@@ -1,0 +1,36 @@
+{
+  "name": "paypal-doctor",
+  "version": "0.1.0",
+  "description": "Finds PayPal integration bugs in a Node codebase, writes the fix, and proves it against the PayPal sandbox.",
+  "type": "module",
+  "bin": {
+    "paypal-doctor": "bin/paypal-doctor.js"
+  },
+  "workspaces": [
+    "demo-store"
+  ],
+  "scripts": {
+    "test": "node --test test/",
+    "demo": "node bin/paypal-doctor.js run demo-store --mode mock --llm replay --dashboard",
+    "demo:real": "node bin/paypal-doctor.js run demo-store --mode sandbox --llm live --dashboard",
+    "scan": "node bin/paypal-doctor.js scan",
+    "dashboard": "node bin/paypal-doctor.js dashboard",
+    "mock": "node bin/paypal-doctor.js mock",
+    "store": "npm start -w demo-store"
+  },
+  "engines": {
+    "node": ">=20.10"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/furqan-khan07/paypal-doctor.git"
+  },
+  "author": "Furqan Khan",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.135.0",
+    "@babel/parser": "7.29.9",
+    "ag-grid-community": "36.2.0",
+    "diff": "9.0.0"
+  }
+}
