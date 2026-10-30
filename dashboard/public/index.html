@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>paypal-doctor</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="/vendor/ag-grid-community.min.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg class="pulse" viewBox="0 0 120 28" aria-hidden="true"><path d="M0 14 H38 L44 4 L52 24 L58 10 L62 14 H120" /></svg>
+      <div>
+        <h1>paypal-doctor</h1>
+        <p id="target-line" class="muted">no report yet</p>
+      </div>
+    </div>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="Verify against">
+        <span class="seg-label">Verify against</span>
+        <button data-mode="mock" class="on">Mock</button>
+        <button data-mode="sandbox" id="sandbox-btn">Sandbox</button>
+      </div>
+      <div class="seg" role="group" aria-label="LLM">
+        <span class="seg-label">Claude</span>
+        <button data-llm="auto" class="on">Auto</button>
+        <button data-llm="replay">Recorded</button>
+        <button data-llm="live" id="live-btn">Live</button>
+      </div>
+      <div class="actions">
+        <button class="ghost" data-stage="scan">Scan</button>
+        <button class="ghost" data-stage="fix">Fix</button>
+        <button class="ghost" data-stage="verify">Verify</button>
+        <button class="primary" data-stage="all">Run all</button>
+      </div>
+      <button class="icon" id="theme-btn" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
+    </div>
+  </header>
+
+  <section class="vitals" id="vitals"></section>
+
+  <main class="split">
+    <section class="panel grid-panel">
+      <div class="panel-head">
+        <h2>Findings</h2>
+        <input id="find-filter" type="search" placeholder="Filter findings…" aria-label="Filter findings" />
+      </div>
+      <div id="findings-grid" class="grid"></div>
+    </section>
+    <aside class="panel detail" id="detail">
+      <div class="empty">Pick a finding to see the code, the patch, and the proof.</div>
+    </aside>
+  </main>
+
+  <section class="panel bottom">
+    <div class="tabs" role="tablist">
+      <button role="tab" class="on" data-tab="traffic">PayPal traffic <span id="traffic-count" class="count"></span></button>
+      <button role="tab" data-tab="final">Regression pass <span id="final-count" class="count"></span></button>
+      <button role="tab" data-tab="log">Run log <span id="job-state" class="count"></span></button>
+      <div class="tab-tools">
+        <label class="check"><input type="checkbox" id="only-selected" /> only the selected finding</label>
+        <input id="traffic-filter" type="search" placeholder="Filter requests…" aria-label="Filter requests" />
+      </div>
+    </div>
+    <div class="tab-body" data-body="traffic"><div id="traffic-grid" class="grid"></div></div>
+    <div class="tab-body" data-body="final" hidden><div id="final-list"></div></div>
+    <div class="tab-body" data-body="log" hidden><pre id="log"></pre></div>
+  </section>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>
