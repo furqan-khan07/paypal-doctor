@@ -39,7 +39,16 @@ async function sandboxUpstream() {
   const creds = { clientId: s.paypalClientId, clientSecret: s.paypalClientSecret };
   const client = new PayPalClient({ base: SANDBOX_BASE, ...creds });
   await client.accessToken(); // fail fast on bad credentials
-  const webhookId = s.paypalWebhookId || (await client.ensureProbeWebhook());
+  let webhookId = s.paypalWebhookId;
+  if (!webhookId) {
+    try {
+      webhookId = await client.ensureProbeWebhook();
+    } catch (err) {
+      // Not fatal: only the webhook probes need it, and they'll say why they can't verify.
+      log.warn(`  ${err.message}`);
+      webhookId = null;
+    }
+  }
   return {
     kind: 'sandbox',
     base: SANDBOX_BASE,
