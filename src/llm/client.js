@@ -34,20 +34,30 @@ export function createLLM({ mode = 'auto', target = 'default' } = {}) {
 
   const fixturePath = (key) => path.join(dir, `${slug(key)}.json`);
 
+  let useFallbacks = true;
+
   async function callLive({ system, prompt, schema, maxTokens = 16000, effort = 'high' }) {
     client ??= new Anthropic({ apiKey: loadSecrets().anthropicApiKey });
+    const params = {
+      model: MODEL,
+      max_tokens: maxTokens,
+      system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: prompt }],
+      output_config: { effort, format: { type: 'json_schema', schema } },
+    };
     let response;
     try {
-      response = await client.beta.messages.create({
-        model: MODEL,
-        max_tokens: maxTokens,
-        betas: ['server-side-fallback-2026-07-01'],
-        fallbacks: 'default',
-        system: [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }],
-        messages: [{ role: 'user', content: prompt }],
-        output_config: { effort, format: { type: 'json_schema', schema } },
-      });
+      // Server-side fallback: if the model declines, the API retries on its
+      // recommended fallback model inside the same call.
+      response = useFallbacks
+        ? await client.beta.messages.create({ ...params, betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' })
+        : await client.messages.create(params);
     } catch (err) {
+      if (useFallbacks && err instanceof Anthropic.BadRequestError && /fallback|beta/i.test(err.message)) {
+        // Older accounts/SDKs may not have the fallback beta - carry on without it.
+        useFallbacks = false;
+        return callLive({ system, prompt, schema, maxTokens, effort });
+      }
       if (err instanceof Anthropic.AuthenticationError) throw new Error('Anthropic rejected the API key (401). Check ANTHROPIC_API_KEY in .env.');
       if (err instanceof Anthropic.RateLimitError) throw new Error('Anthropic rate limit hit (429). Wait a minute and re-run.');
       if (err instanceof Anthropic.APIError) throw new Error(`Anthropic API error ${err.status}: ${redact(err.message)}`);
