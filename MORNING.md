@@ -1,6 +1,6 @@
 # Good morning
 
-The **Repo** is https://github.com/furqan-khan07/paypal-doctor. It's **private**, has an MIT LICENSE, and 10+ commits, all pushed.
+The **Repo** is https://github.com/furqan-khan07/paypal-doctor. It's **private**, has an MIT LICENSE, and about 18 commits, all pushed.
 
 **TL;DR**
 - Find → fix → verify works end to end on the demo store, with a local PayPal mock and recorded Claude answers.
@@ -17,7 +17,7 @@ Your `.env` keys were still empty when I finished, so **nothing here has touched
 ```bash
 cd ~/Documents/PROJECTS/paypal-doctor
 npm install            # already done on this machine
-npm test               # 10 tests: detectors, mock, end-to-end, sandbox code path, Claude client
+npm test               # 13 tests, ~9s: detectors (REST + server SDK), mock, interceptor, end-to-end, sandbox code path, apply --commits, Claude client
 npm run demo           # scan -> fix -> verify on the mock, then the dashboard at http://localhost:4417
 ```
 
@@ -38,6 +38,7 @@ On the dashboard:
 - Click a finding to see the flagged code, Claude's explanation, the before ✗ / after ✓ probe checks, and the diff.
 - The bottom grid shows every PayPal request the probes made. Tick "only the selected finding" to filter it.
 - Scan / Fix / Verify / Run all work from the page, and the log streams live.
+- Both grids export to CSV.
 
 **The demo, in numbers:**
 - 9 seeded bugs found by the static pass, plus 1 that only the (recorded) Claude review finds: the webhook treating `PAYMENT.CAPTURE.PENDING` as paid.
@@ -77,6 +78,13 @@ On the dashboard:
 13. **The verifier checks the app can start before probing.** Otherwise a missing `npm install` showed up as "10 patches failed".
 14. **The demo store** is an npm workspace, so `npm install` at the root installs its Express too.
 15. **README tone.** Personal but without invented anecdotes. It mentions pandas-doctor as the predecessor, since that's in your brief. Edit to taste.
+16. **Added after the core worked:**
+    - `apply --commits`: one commit per verified patch, with the proof in the message, plus PULL_REQUEST.md.
+    - `node:http`/`https` interception, for axios and the SDK.
+    - Detector support for `@paypal/paypal-server-sdk`, with a TypeScript fixture.
+    - CSV export on the dashboard.
+    - A Host-header check on the dashboard against DNS rebinding.
+17. **No CI workflow.** I didn't add a GitHub Actions workflow, since it would spend Actions minutes on your account while the repo is private. If you want a badge, add `.github/workflows/test.yml` running `npm ci && npm test` on Node 20 after flipping it public.
 
 ## What you need to do next
 

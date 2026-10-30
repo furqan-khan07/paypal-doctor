@@ -8,7 +8,7 @@ Finds PayPal integration bugs in a Node.js codebase, writes the fix, and then pr
 
 Most PayPal bugs don't crash anything. They lose money quietly. A webhook handler that believes any JSON posted to it. A cart total summed from prices the browser sent. A capture that came back `PENDING` but got treated as paid. A retry after a timeout that hits `ORDER_ALREADY_CAPTURED`, so the shop never records a payment it actually took.
 
-A linter can flag the line, but "this might be wrong" is easy to ignore. I wanted a tool that shows the bug happening and then shows it gone. It's the same find-then-verify idea as my earlier project pandas-doctor, which finds slow pandas code and checks the faster version gives the same answer.
+A linter can flag the line, but "this might be wrong" is easy to ignore. I wanted a tool that shows the bug happening and then shows it gone. It's the same find-then-verify loop as pandas-doctor, my earlier project for slow pandas code.
 
 ## What it does
 
@@ -16,17 +16,17 @@ A linter can flag the line, but "this might be wrong" is easy to ignore. I wante
 scan  ──►  fix  ──►  verify
 ```
 
-**Scan.** Two passes. First, AST detectors (Babel parser, plus a small data-flow pass that follows a value across functions and files) for eight rules, each tied to a PayPal doc. Then a Claude review pass gets the PayPal-related files plus the static findings and looks for what they missed. Its findings are only kept if they name a known rule and quote evidence that's really on that line.
+**Scan.** Two passes. First, AST detectors (Babel parser, plus a small data-flow pass that follows a value across functions and files) for nine rules, each tied to a PayPal doc. Then a Claude review pass gets the PayPal-related files plus the static findings and looks for what they missed. Its findings are only kept if they name a known rule and quote evidence that's really on that line.
 
 **Fix.** For each finding, Claude writes a minimal patch (find/replace edits) and a plain-English explanation. Patches form a chain: patch N is written against the code with patches 1..N-1 already applied, so each one can be tested on its own. A patch that doesn't apply cleanly, or doesn't parse afterwards, gets one retry with the error, then it's rejected.
 
-**Verify.** For each patch, the app is copied twice (before and after the patch), started with a fetch interceptor preloaded, and driven through a scripted checkout:
+**Verify.** For each patch, the app is copied twice (before and after the patch), started with an interceptor preloaded, and driven through a scripted checkout:
 
 - The **probe** plays the buyer with no browser: it approves the order through `confirm-payment-source` using PayPal's published sandbox test card, then lets the app capture.
 - The **interceptor** records every PayPal call (credentials reduced to a fingerprint, card numbers masked). It can reroute hosts, and it can inject faults: drop a response after PayPal processed it, rewrite a capture to `PENDING`, add PayPal's negative-testing header. It refuses to let anything reach the live API.
 - A patch is **verified** when the probe fails before it (the bug is reproduced) and passes after it. Then every probe runs once more on the fully patched app, and the static scan runs again, as a regression pass.
 
-**Dashboard.** An AG Grid page with the findings, their patches and the before/after proof, plus a second grid with every PayPal request the probes made: status, `PayPal-Request-Id`, what PayPal said, which fault was injected, and the debug id.
+**Dashboard.** An AG Grid page with the findings, their patches and the before/after proof, plus a second grid with every PayPal request the probes made: status, `PayPal-Request-Id`, what PayPal said, which fault was injected, and the debug id. Both grids export to CSV.
 
 ## The rules
 
@@ -55,7 +55,7 @@ npm install
 npm run demo
 ```
 
-That scans the demo store in `demo-store/` (a small shop with nine bugs seeded on purpose), applies the patches, verifies each one against a local PayPal mock, and opens the dashboard at http://localhost:4417.
+That scans the demo store in `demo-store/` (a small shop with ten bugs seeded on purpose), applies the patches, verifies each one against a local PayPal mock, and opens the dashboard at http://localhost:4417.
 
 Without an `ANTHROPIC_API_KEY`, the Claude steps replay recorded answers from `src/llm/fixtures/`. The dashboard marks those as recorded, and the ones shipped for the demo are labelled hand-written. Without PayPal keys, the probes talk to the mock in `src/mock-paypal/`.
 
