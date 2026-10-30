@@ -1,6 +1,6 @@
 # Good morning
 
-The **Repo** is https://github.com/furqan-khan07/paypal-doctor. It's **private**, has an MIT LICENSE, and about 18 commits, all pushed.
+The **Repo** is https://github.com/furqan-khan07/paypal-doctor. It's **private**, has an MIT LICENSE, and 19 commits, all pushed.
 
 **TL;DR**
 - Find → fix → verify works end to end on the demo store, with a local PayPal mock and recorded Claude answers.
@@ -36,14 +36,14 @@ Careful with that last one on `demo-store` itself: it would commit the fixes int
 
 On the dashboard:
 - Click a finding to see the flagged code, Claude's explanation, the before ✗ / after ✓ probe checks, and the diff.
-- The bottom grid shows every PayPal request the probes made. Tick "only the selected finding" to filter it.
+- The bottom grid shows every PayPal request, both the app's and the probe's own (buyer approval, replays). Tick "only the selected finding" to filter it.
 - Scan / Fix / Verify / Run all work from the page, and the log streams live.
 - Both grids export to CSV.
 
 **The demo, in numbers:**
 - 9 seeded bugs found by the static pass, plus 1 that only the (recorded) Claude review finds: the webhook treating `PAYMENT.CAPTURE.PENDING` as paid.
 - 10 patches, each verified before/after.
-- A mock run takes about 8 seconds and makes about 140 PayPal calls.
+- A mock run takes about 8 seconds and makes about 155 PayPal calls. About 140 come from the app; the rest are the probe acting as the buyer, marked "probe" in the traffic grid.
 
 ## What's mocked or untested
 
