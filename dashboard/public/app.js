@@ -174,7 +174,9 @@ function renderVitals() {
   ];
   $('#vitals').innerHTML = tiles.map((t) => `<div class="vital ${t.cls || ''}"><div class="k">${esc(t.k)}</div><div class="v">${esc(t.v)}</div><div class="s">${esc(t.s)}</div></div>`).join('');
   const target = r?.target;
-  $('#target-line').textContent = target ? `${target.name} · ${target.root}${r.updatedAt ? ` · updated ${new Date(r.updatedAt).toLocaleTimeString()}` : ''}` : 'no report yet';
+  const folder = target?.root?.split(/[\\/]/).filter(Boolean).pop();
+  $('#target-line').textContent = target ? `${target.name} · ${folder}/${r.updatedAt ? ` · updated ${new Date(r.updatedAt).toLocaleTimeString()}` : ''}` : 'no report yet';
+  $('#target-line').title = target?.root || '';
 }
 
 // ---------- detail panel ---------------------------------------------------
