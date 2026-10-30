@@ -16,7 +16,9 @@
     "scan": "node bin/paypal-doctor.js scan",
     "dashboard": "node bin/paypal-doctor.js dashboard",
     "mock": "node bin/paypal-doctor.js mock",
-    "store": "npm start -w demo-store"
+    "store": "node --env-file=.env demo-store/server.js",
+    "forge-webhook": "node scripts/forge-webhook.mjs",
+    "preflight": "node bin/paypal-doctor.js preflight"
   },
   "engines": {
     "node": ">=20.10"

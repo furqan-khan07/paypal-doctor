@@ -76,6 +76,7 @@ export async function runVerify({ root, report, mode = 'mock', keep = false }) {
   }
   report.traffic = traffic;
   report.verify = { at: new Date().toISOString(), mode, upstream, ms: Date.now() - started, counts, final, workRoot };
+  if (workRoot) log.info(`Kept the app copies and raw traces in ${workRoot}`);
   writeReport(report);
   log.step(`Done in ${((Date.now() - started) / 1000).toFixed(1)}s: ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ')}`);
   log[final.allPassed ? 'ok' : 'warn'](`Regression pass on the fully patched app: ${final.probes.filter((p) => p.passed).length}/${final.probes.length} probes green${final.remainingFindings.length ? `, ${final.remainingFindings.length} static finding(s) left` : ', static scan clean'}`);
