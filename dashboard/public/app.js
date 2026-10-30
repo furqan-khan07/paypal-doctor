@@ -130,6 +130,12 @@ const trafficGrid = agGrid.createGrid($('#traffic-grid'), {
   overlayNoRowsTemplate: '<span class="muted">No PayPal traffic yet - verify some patches.</span>',
 });
 $('#traffic-filter').oninput = (e) => trafficGrid.setGridOption('quickFilterText', e.target.value);
+const csvName = (what) => `paypal-doctor-${state.report?.target?.name || 'report'}-${what}.csv`;
+$('#export-traffic').onclick = () => trafficGrid.exportDataAsCsv({ fileName: csvName('paypal-traffic'), columnKeys: ['finding', 'phase', 'upstream', 'method', 'path', 'status', 'said', 'rid', 'faults', 'ms', 'debugId'] });
+$('#export-findings').onclick = () => findingsGrid.exportDataAsCsv({
+  fileName: csvName('findings'),
+  processCellCallback: (p) => (p.column.getColId() === 'title' ? `${p.node.data.title} (${p.node.data.ruleId})` : p.value),
+});
 $('#only-selected').onchange = refreshTraffic;
 
 function saidOf(t) {

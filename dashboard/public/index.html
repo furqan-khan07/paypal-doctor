@@ -45,7 +45,10 @@
     <section class="panel grid-panel">
       <div class="panel-head">
         <h2>Findings</h2>
-        <input id="find-filter" type="search" placeholder="Filter findings…" aria-label="Filter findings" />
+        <div class="head-tools">
+          <input id="find-filter" type="search" placeholder="Filter findings…" aria-label="Filter findings" />
+          <button class="small-btn" id="export-findings" title="Download the findings as CSV">CSV</button>
+        </div>
       </div>
       <div id="findings-grid" class="grid"></div>
     </section>
@@ -62,6 +65,7 @@
       <div class="tab-tools">
         <label class="check"><input type="checkbox" id="only-selected" /> only the selected finding</label>
         <input id="traffic-filter" type="search" placeholder="Filter requests…" aria-label="Filter requests" />
+        <button class="small-btn" id="export-traffic" title="Download the PayPal requests as CSV">CSV</button>
       </div>
     </div>
     <div class="tab-body" data-body="traffic"><div id="traffic-grid" class="grid"></div></div>
