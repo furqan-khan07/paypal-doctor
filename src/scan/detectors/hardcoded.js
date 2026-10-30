@@ -33,12 +33,37 @@ function inEnvSwitch(ancestors) {
   return false;
 }
 
+function inSdkEnvSwitch(ancestors) {
+  // cond ? Environment.Production : Environment.Sandbox
+  for (let i = ancestors.length - 1; i >= Math.max(0, ancestors.length - 3); i--) {
+    const a = ancestors[i];
+    if (a.type === 'ConditionalExpression' || a.type === 'LogicalExpression') return true;
+    if (a.type === 'ObjectExpression' && a.properties.length > 1) {
+      const vals = a.properties.map((p) => memberPath(p.value) || '').join(' ');
+      if (/Environment\.Sandbox/.test(vals) && /Environment\.Production/.test(vals)) return true;
+    }
+  }
+  return false;
+}
+
 export function detectHardcoded(ctx) {
-  const { ast, report, isClient } = ctx;
+  const { ast, report, isClient, code } = ctx;
   let reportedEnv = false;
+  const usesServerSdk = /@paypal\/paypal-server-sdk/.test(code);
 
   walk(ast, (node, ancestors) => {
     const parent = ancestors[ancestors.length - 1];
+
+    // ---- @paypal/paypal-server-sdk: environment: Environment.Sandbox ----
+    if (usesServerSdk && !reportedEnv && node.type === 'MemberExpression' && !node.computed &&
+        node.object.type === 'Identifier' && node.object.name === 'Environment' && ['Sandbox', 'Production'].includes(node.property.name)) {
+      if (!inSdkEnvSwitch(ancestors)) {
+        reportedEnv = true;
+        report('hardcoded-environment', node, {
+          message: `The SDK client is pinned to Environment.${node.property.name}. Switching environments means editing code${node.property.name === 'Sandbox' ? ', and a production deploy would keep talking to the sandbox' : ''}.`,
+        });
+      }
+    }
 
     // ---- environment host literals ----
     if (!reportedEnv && (node.type === 'StringLiteral' || node.type === 'TemplateLiteral')) {

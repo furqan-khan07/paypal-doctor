@@ -51,3 +51,16 @@ test('edge cases: env switches, env fallbacks and placeholders are not flagged',
   assert.equal(findings.filter((f) => f.file === 'env-switch.js').length, 0);
   assert.equal(findings.filter((f) => f.ruleId === 'hardcoded-environment').length, 0);
 });
+
+test('@paypal/paypal-server-sdk (TypeScript): the buggy file is flagged, the correct one is not', () => {
+  const { findings, parseErrors } = scanStatic('test/fixtures/sdk-app');
+  assert.deepEqual(parseErrors, []);
+  assert.deepEqual(summary(findings), [
+    'capture-status-unchecked@src/paypal.ts',
+    'client-supplied-amount@src/paypal.ts',
+    'hardcoded-environment@src/paypal.ts',
+    'missing-request-id@src/paypal.ts',
+    'missing-request-id@src/paypal.ts',
+  ]);
+  assert.equal(findings.filter((f) => f.file === 'src/paypal-ok.ts').length, 0);
+});

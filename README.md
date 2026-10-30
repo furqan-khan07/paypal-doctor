@@ -42,7 +42,7 @@ scan  ──►  fix  ──►  verify
 | `hardcoded-environment` | Sandbox/live host hardcoded instead of configured |
 | `deprecated-sdk` | `paypal-rest-sdk` / `@paypal/checkout-server-sdk` |
 
-[docs/rules.md](docs/rules.md) has the exact detection logic, how each probe proves it, and the PayPal doc each rule rests on.
+[docs/rules.md](docs/rules.md) has the exact detection logic, how each probe proves it, and the PayPal doc each rule rests on. The detectors understand both raw REST calls (`fetch`, axios, got) and PayPal's current server SDK (`@paypal/paypal-server-sdk`): missing `paypalRequestId`, `Environment.Sandbox` hardcoded, an unchecked `captureOrder()` result. `test/fixtures/sdk-app` has an SDK-based example.
 
 ## Quick start (no keys needed)
 

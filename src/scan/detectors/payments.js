@@ -70,7 +70,9 @@ export function detectPayments(ctx) {
     if (usesServerSdk && (node.type === 'CallExpression') && node.callee.type === 'MemberExpression') {
       const method = node.callee.property?.name;
       if (['createOrder', 'captureOrder', 'authorizeOrder', 'refundCapturedPayment', 'captureAuthorizedPayment'].includes(method)) {
-        const arg = node.arguments[0];
+        let arg = node.arguments[0];
+        if (arg?.type === 'Identifier') arg = index.lookup(arg.name, ancestors)?.binding?.init ?? arg;
+        if (arg?.type === 'TSAsExpression') arg = arg.expression;
         if (arg?.type === 'ObjectExpression' && !objectProp(arg, 'paypalRequestId')) {
           report('missing-request-id', node, { message: `${method}() is called without paypalRequestId, so retries are not idempotent.` });
         }

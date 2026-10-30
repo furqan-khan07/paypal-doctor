@@ -16,12 +16,22 @@ export class RepoIndex {
     this.functions = new Map(); // name -> [{ file, node, ancestors }]
     this.calls = new Map(); // callee name -> [{ file, node, ancestors }]
     this.bindings = new WeakMap(); // fn/program node -> Map
-    this.fnOf = new WeakMap(); // node -> enclosing fn (filled lazily)
+    this.imports = new Map(); // file -> Map(localName -> source)
   }
 
   addFile(file, ast, code) {
     this.files.set(file, { ast, code });
+    const imports = new Map();
+    this.imports.set(file, imports);
     walk(ast, (node, ancestors) => {
+      if (node.type === 'ImportDeclaration') {
+        for (const sp of node.specifiers) imports.set(sp.local.name, node.source.value);
+      }
+      if (node.type === 'VariableDeclarator' && node.init?.type === 'CallExpression' && node.init.callee.name === 'require' && node.init.arguments[0]?.type === 'StringLiteral') {
+        const src = node.init.arguments[0].value;
+        if (node.id.type === 'Identifier') imports.set(node.id.name, src);
+        if (node.id.type === 'ObjectPattern') for (const p of node.id.properties) if (p.value?.type === 'Identifier') imports.set(p.value.name, src);
+      }
       if (FUNCTION_TYPES.has(node.type)) {
         const name = functionName(node, ancestors);
         if (name && !name.startsWith('(') && !name.includes(' ')) {
@@ -57,10 +67,25 @@ export class RepoIndex {
     return null;
   }
 
+  // Call sites that plausibly call this function: a plain call in the same
+  // file, or a call through a name imported from a local (relative) module.
+  // Calls like `ordersController.createOrder()` on some library object are
+  // not callers of the app's own createOrder().
   callersOf(fnNode, fnAncestors) {
     const name = functionName(fnNode, fnAncestors);
     if (!name || name.startsWith('(') || name.includes(' ')) return [];
-    return (this.calls.get(name) || []).filter((c) => !c.ancestors.includes(fnNode));
+    const fnFile = [...this.files.entries()].find(([, f]) => fnAncestors[0] === f.ast || fnAncestors[0] === f.ast.program)?.[0];
+    const isLocal = (src) => typeof src === 'string' && src.startsWith('.');
+    return (this.calls.get(name) || []).filter((c) => {
+      if (c.ancestors.includes(fnNode)) return false;
+      const callee = c.node.callee;
+      const imports = this.imports.get(c.file) || new Map();
+      if (callee.type === 'Identifier') return c.file === fnFile || isLocal(imports.get(callee.name));
+      const obj = callee.object;
+      if (obj?.type === 'ThisExpression') return c.file === fnFile;
+      if (obj?.type === 'Identifier') return isLocal(imports.get(obj.name));
+      return false;
+    });
   }
 }
 
@@ -145,7 +170,10 @@ export function clientPriceTaint(index, file, expr, ancestors, hops = 0, seen = 
           }
         }
       }
-      for (const a of [callee, ...expr.arguments]) {
+      const parts = [...expr.arguments];
+      if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') parts.unshift(callee.object);
+      else parts.unshift(callee);
+      for (const a of parts) {
         const t = clientPriceTaint(index, file, a, ancestors, hops, seen);
         if (t) return t;
       }
