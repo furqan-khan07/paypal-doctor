@@ -118,6 +118,7 @@ const trafficGrid = agGrid.createGrid($('#traffic-grid'), {
     { headerName: 'Finding', colId: 'finding', width: 190, valueGetter: (p) => (p.data.findingId ? `${ruleOf(p.data.findingId)?.ruleId || p.data.findingId}` : 'regression pass') },
     { headerName: 'Phase', field: 'phase', width: 96, cellRenderer: (p) => `<span class="dot ${p.value === 'before' ? 'bad' : 'ok'}">${esc(p.value)}</span>` },
     { headerName: 'Upstream', field: 'upstream', width: 104, cellRenderer: (p) => `<span class="badge">${esc(p.value)}</span>` },
+    { headerName: 'Caller', field: 'actor', width: 108, headerTooltip: 'app = the app under test; probe = paypal-doctor acting as the buyer', cellRenderer: (p) => (p.value === 'probe' ? '<span class="badge llm" title="paypal-doctor playing the buyer">probe</span>' : '<span class="muted">app</span>') },
     { headerName: 'Method', field: 'method', width: 88, cellClass: 'mono' },
     { headerName: 'Path', field: 'path', flex: 2, minWidth: 260, cellClass: 'mono' },
     { headerName: 'Status', field: 'status', width: 86, cellRenderer: (p) => `<span class="mono status-${String(p.value)[0]}">${p.value === 0 ? 'error' : esc(p.value)}</span>` },
@@ -131,7 +132,7 @@ const trafficGrid = agGrid.createGrid($('#traffic-grid'), {
 });
 $('#traffic-filter').oninput = (e) => trafficGrid.setGridOption('quickFilterText', e.target.value);
 const csvName = (what) => `paypal-doctor-${state.report?.target?.name || 'report'}-${what}.csv`;
-$('#export-traffic').onclick = () => trafficGrid.exportDataAsCsv({ fileName: csvName('paypal-traffic'), columnKeys: ['finding', 'phase', 'upstream', 'method', 'path', 'status', 'said', 'rid', 'faults', 'ms', 'debugId'] });
+$('#export-traffic').onclick = () => trafficGrid.exportDataAsCsv({ fileName: csvName('paypal-traffic'), columnKeys: ['finding', 'phase', 'upstream', 'actor', 'method', 'path', 'status', 'said', 'rid', 'faults', 'ms', 'debugId'] });
 $('#export-findings').onclick = () => findingsGrid.exportDataAsCsv({
   fileName: csvName('findings'),
   processCellCallback: (p) => (p.column.getColId() === 'title' ? `${p.node.data.title} (${p.node.data.ruleId})` : p.value),
@@ -141,6 +142,7 @@ $('#only-selected').onchange = refreshTraffic;
 function saidOf(t) {
   const b = t.responseBody;
   if (t.error) return t.error;
+  if (t.said) return t.said;
   if (!b || typeof b !== 'object') return '';
   if (b.details?.[0]?.issue) return b.details[0].issue;
   if (b.verification_status) return `verification ${b.verification_status}`;

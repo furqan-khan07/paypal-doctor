@@ -36,7 +36,11 @@ export class PayPalClient {
     } catch {
       json = { raw: text.slice(0, 500) };
     }
-    this.calls.push({ method, path, status: res.status, ms: Date.now() - started, debugId: res.headers.get('paypal-debug-id') });
+    const said = json?.details?.[0]?.issue || json?.verification_status || (json?.status ? `${json.id ? `${json.id} ` : ''}${json.status}` : json?.name) || '';
+    this.calls.push({
+      t: started, method, path, status: res.status, ms: Date.now() - started, debugId: res.headers.get('paypal-debug-id') || undefined,
+      requestId: h['PayPal-Request-Id'], said,
+    });
     return { status: res.status, ok: res.ok, json, debugId: res.headers.get('paypal-debug-id') };
   }
 

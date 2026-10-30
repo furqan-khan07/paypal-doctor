@@ -12,6 +12,9 @@ export class ProbeRun {
     this.apps = [];
     this.skipped = null;
     this.upstreamsUsed = new Set();
+    // The probe's own calls (playing the buyer, replays) go through the
+    // doctor's PayPal clients, not the app; remember where their logs stand.
+    this.clientMarks = new Map([upstream, mockUpstream].filter(Boolean).map((u) => [u.client, { kind: u.kind, from: u.client.calls.length }]));
   }
 
   async app({ env = {}, faults = [], useMock = false, apiBase, allowNotReady = false } = {}) {
@@ -57,8 +60,17 @@ export class ProbeRun {
     const traffic = [];
     for (const app of this.apps) {
       await app.stop();
-      for (const entry of app.trace()) traffic.push({ ...entry, app: app.index, upstream: app.upstream.kind });
+      for (const entry of app.trace()) traffic.push({ ...entry, actor: 'app', app: app.index, upstream: app.upstream.kind });
     }
+    for (const [client, { kind, from }] of this.clientMarks) {
+      for (const c of client.calls.slice(from)) {
+        traffic.push({
+          t: c.t, method: c.method, path: c.path, status: c.status, ms: c.ms, debugId: c.debugId, actor: 'probe', upstream: kind,
+          requestHeaders: c.requestId ? { 'paypal-request-id': c.requestId } : {}, faults: [], said: c.said,
+        });
+      }
+    }
+    traffic.sort((a, b) => (a.t || 0) - (b.t || 0));
     const must = this.checks.filter((c) => c.level === 'must');
     const passed = !this.skipped && !this.error && must.length > 0 && must.every((c) => c.passed);
     return {
