@@ -29,7 +29,10 @@ node bin/paypal-doctor.js scan demo-store   # just the findings
 node bin/paypal-doctor.js dashboard         # dashboard for the latest report
 npm run store                               # the demo shop on :8888 with your .env (PayPal buttons need PAYPAL_CLIENT_ID)
 npm run forge-webhook -- <orderId>          # post a fake PAYMENT.CAPTURE.COMPLETED to the running shop
+node bin/paypal-doctor.js apply <dir> --yes --commits   # one git commit per verified patch + PULL_REQUEST.md
 ```
+
+Careful with that last one on `demo-store` itself: it would commit the fixes into this repo and the demo would have no bugs left. Try it on a copy (see `test/apply.test.js` for how).
 
 On the dashboard:
 - Click a finding to see the flagged code, Claude's explanation, the before ✗ / after ✓ probe checks, and the diff.

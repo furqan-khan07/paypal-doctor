@@ -71,7 +71,7 @@ Everything lands in a dashboard built on AG Grid. One grid has the findings with
 ## What's next
 
 - Probe traffic made through axios and `@paypal/paypal-server-sdk`, not just fetch.
-- Open a pull request with one commit per verified patch, with the proof in the description.
+- Open the pull request on GitHub directly. Today `apply --commits` makes one commit per verified patch with the proof in each message, and writes the PR description.
 - Python and Java integrations, and the rules I left out because I couldn't tie them to a PayPal doc yet (webhook event-id dedupe, refunds trusted from the client).
 
 ## Built with
@@ -106,7 +106,7 @@ Record at 1440x900 or larger, dark theme, with the terminal font bumped up. Run 
 | 1:15-1:50 | Dashboard. Findings grid, click the $0.01 bug: the data flow across files, the explanation, before ✗ / after ✓, the diff. | "Before: PayPal was asked for one cent. After: eighteen dollars. That's the sandbox, not a mock." |
 | 1:50-2:15 | Click the capture-retry finding. Open the traffic grid filtered to it: a capture with the "response dropped" fault, then the retry with the same PayPal-Request-Id returning 201. | "The scariest one: PayPal takes the money, the response gets lost, the retry fails, and the order says unpaid. With an idempotency key, the retry gets the original capture back." |
 | 2:15-2:30 | Webhook finding: the forged event is rejected, verify-webhook-signature says FAILURE, and a signed event is still accepted. | |
-| 2:30-2:45 | Regression pass tab at 10/10, then `paypal-doctor apply demo-store --yes` and `git diff --stat`. | "Every probe green on the patched app, re-scan clean, patches applied." |
+| 2:30-2:45 | Regression pass tab at 10/10, then `apply <copy of the store> --yes --commits` and `git log --oneline` showing ten fix commits; open one commit message showing its before/after proof. | "Every probe green on the patched app, re-scan clean. You get one commit per fix, each carrying its own proof." |
 | 2:45-2:55 | README rules table + "npm run demo runs without keys". | "Open source, MIT, runs offline against a PayPal mock, or against your sandbox with your keys." |
 
 Things to double-check before recording: card payments are enabled for the sandbox app (`node bin/paypal-doctor.js preflight` is all green), the dashboard has a fresh sandbox run (the "PayPal calls" tile says "against the sandbox"), and no `.env` value is visible on screen.

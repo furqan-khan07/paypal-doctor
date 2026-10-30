@@ -2,7 +2,6 @@
 // before the patch (should fail - bug reproduced) and after it (should pass),
 // re-run the static scan on the patched code, then run every probe once more
 // on the fully patched app as a regression pass.
-import fs from 'node:fs';
 import path from 'node:path';
 import { createMockPayPal, MOCK_WEBHOOK_ID } from '../mock-paypal/server.js';
 import { PayPalClient, SANDBOX_BASE, REAL_SANDBOX_BASE } from './paypal-client.js';
@@ -164,14 +163,4 @@ export async function verifyFindings({ root, report, mode = 'mock', keep = false
     if (upstream !== mock) await upstream.stop();
     if (!keep) removeDir(workRoot);
   }
-}
-
-export function writePatchedTree(root, report, dest) {
-  const tree = treeAfter(root, report.findings);
-  for (const [file, content] of tree.overrides) {
-    const abs = path.join(dest, file);
-    fs.mkdirSync(path.dirname(abs), { recursive: true });
-    fs.writeFileSync(abs, content);
-  }
-  return [...tree.overrides.keys()];
 }

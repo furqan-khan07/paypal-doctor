@@ -119,8 +119,10 @@ paypal-doctor needs to know how to start your app and which routes do what. Put 
 ```bash
 node bin/paypal-doctor.js run path/to/app --mode sandbox
 node bin/paypal-doctor.js dashboard
-node bin/paypal-doctor.js apply path/to/app --yes   # write the verified patches into the app
+node bin/paypal-doctor.js apply path/to/app --yes --commits
 ```
+
+`apply --commits` makes one git commit per verified patch, in order. Each commit message carries the explanation and the probe result: which checks failed before the patch, which pass after. It also writes a pull-request description (a table of every patch with its before/after result, plus anything to do before merging) to `.doctor/<name>/PULL_REQUEST.md`. Patches that failed verification are left out. Without `--commits`, `apply` just writes the patched files.
 
 The static scan works on any repo, config or not. Probes need the config, and an app that talks to PayPal through `fetch`.
 
@@ -131,7 +133,7 @@ paypal-doctor run <dir> [--mode mock|sandbox] [--llm auto|live|replay|record|off
 paypal-doctor scan <dir>       static detectors + Claude review
 paypal-doctor fix <dir>        one patch per finding
 paypal-doctor verify <dir>     before/after probes, then the regression pass
-paypal-doctor apply <dir> --yes
+paypal-doctor apply <dir> --yes [--commits]
 paypal-doctor dashboard [--port 4417]
 paypal-doctor mock [--port 4455]     the PayPal mock on its own (point PAYPAL_API_BASE at it)
 paypal-doctor preflight              sandbox readiness check

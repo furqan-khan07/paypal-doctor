@@ -2,7 +2,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { runScan, runFix, runVerify, loadOrScan } from '../src/pipeline.js';
-import { writePatchedTree } from '../src/verify/index.js';
 import { loadSecrets, hasPayPalKeys, hasAnthropicKey } from '../src/env.js';
 import { log, color } from '../src/log.js';
 
@@ -13,7 +12,7 @@ Usage
   paypal-doctor scan <dir> [--llm ...]       find issues (static detectors + LLM review)
   paypal-doctor fix <dir> [--llm ...]        write a patch per finding (needs a scan)
   paypal-doctor verify <dir> [--mode ...]    run each patch's probe before/after (needs fixes)
-  paypal-doctor apply <dir> --yes            write the verified patches into <dir>
+  paypal-doctor apply <dir> --yes [--commits] write the patches into <dir> (or one git commit per verified patch)
   paypal-doctor dashboard [--port 4417]      findings dashboard (AG Grid)
   paypal-doctor mock [--port 4455]           run the local PayPal mock on its own
   paypal-doctor status                       which keys are configured (never prints them)
@@ -102,12 +101,25 @@ async function main() {
     case 'apply': {
       const dir = needDir(args);
       const report = needReport(dir, 'verify');
+      const { applyFiles, applyAsCommits } = await import('../src/apply.js');
+      const n = report.findings.filter((f) => f.fix?.status === 'ready').length;
       if (!args.yes) {
-        log.info(`This writes ${report.findings.filter((f) => f.fix?.status === 'ready').length} patch(es) into ${path.resolve(dir)}. Re-run with --yes to do it.`);
+        log.info(`This writes ${n} patch(es) into ${path.resolve(dir)}${args.commits ? ', one git commit per verified patch' : ''}. Re-run with --yes to do it.`);
         break;
       }
-      const files = writePatchedTree(dir, report, dir);
-      log.ok(`Patched ${files.length} file(s): ${files.join(', ')}`);
+      if (args.commits) {
+        const { commits, pr } = applyAsCommits(dir, report, { includeUnverified: !!args['include-unverified'] });
+        for (const c of commits) {
+          const where = `${c.finding.ruleId} @ ${c.finding.file}:${c.finding.line}`;
+          if (c.sha) log.ok(`  ${c.sha} ${where}`);
+          else log.warn(`  skipped ${where} (${c.skipped})`);
+        }
+        log.info(`Pull request description: ${pr}`);
+      } else {
+        const { files, pr } = applyFiles(dir, report);
+        log.ok(`Patched ${files.length} file(s): ${files.join(', ')}`);
+        log.info(`Pull request description: ${pr}`);
+      }
       break;
     }
     case 'dashboard': {
