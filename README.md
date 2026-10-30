@@ -124,7 +124,7 @@ node bin/paypal-doctor.js apply path/to/app --yes --commits
 
 `apply --commits` makes one git commit per verified patch, in order. Each commit message carries the explanation and the probe result: which checks failed before the patch, which pass after. It also writes a pull-request description (a table of every patch with its before/after result, plus anything to do before merging) to `.doctor/<name>/PULL_REQUEST.md`. Patches that failed verification are left out. Without `--commits`, `apply` just writes the patched files.
 
-The static scan works on any repo, config or not. Probes need the config, and an app that talks to PayPal through `fetch`.
+The static scan works on any repo, config or not. Probes need the config.
 
 ## CLI
 
@@ -169,7 +169,7 @@ demo-store/                 Kiln & Co., the deliberately broken shop
 
 ## Limitations
 
-- JavaScript/TypeScript on Node only. The probes see traffic made with global `fetch`; apps using axios or `@paypal/paypal-server-sdk` still get the static scan and the patches, but not the before/after proof (yet).
+- JavaScript/TypeScript on Node only. The interceptor covers global `fetch` and `node:http`/`node:https`, which axios, got and `@paypal/paypal-server-sdk` sit on top of. The fetch path is what the demo exercises; the http path has its own test, but hasn't been tried against a real SDK-based app yet.
 - The data-flow pass is deliberately small: local bindings plus two hops across call sites. It will miss things a real taint engine would catch. The Claude pass is there partly to cover that.
 - The mock is not a PayPal emulator. It implements the behaviour the probes rely on, and every check that matters can also run against the real sandbox.
 - `PENDING` captures can't be triggered on demand in the sandbox, so that scenario rewrites a real sandbox capture response to `PENDING` with `PENDING_REVIEW`. The dashboard labels it as an injected fault.

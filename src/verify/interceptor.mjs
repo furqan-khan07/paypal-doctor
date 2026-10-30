@@ -7,8 +7,17 @@
 //
 // Self-contained on purpose: no imports beyond node built-ins, so it can't
 // pull the doctor's own dependencies into the app.
+//
+// node:http / node:https (axios, got, @paypal/paypal-server-sdk) are covered
+// too: requests to PayPal are sent to a small server inside this process,
+// on a unix socket, which replays them through the same fetch wrapper.
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import http from 'node:http';
+import https from 'node:https';
 import crypto from 'node:crypto';
+import { syncBuiltinESMExports } from 'node:module';
 
 const TRACE = process.env.DOCTOR_TRACE;
 const ROUTES = JSON.parse(process.env.DOCTOR_ROUTES || '{}');
@@ -83,7 +92,7 @@ function reroute(url) {
   return url;
 }
 
-globalThis.fetch = async function doctorFetch(input, init) {
+async function doctorFetch(input, init) {
   const req = new Request(input, init);
   const original = new URL(req.url);
   const isPayPal = PAYPAL_HOST.test(original.hostname) || ROUTES[original.origin] !== undefined;
@@ -136,8 +145,7 @@ globalThis.fetch = async function doctorFetch(input, init) {
   let text = await res.text();
   let status = res.status;
   const outHeaders = new Headers(res.headers);
-  outHeaders.delete('content-encoding');
-  outHeaders.delete('content-length');
+  for (const h of ['content-encoding', 'content-length', 'transfer-encoding', 'connection', 'keep-alive']) outHeaders.delete(h);
 
   for (const f of active) {
     if (f.action === 'set-capture-status') {
@@ -177,4 +185,90 @@ globalThis.fetch = async function doctorFetch(input, init) {
 
   record(entry);
   return new Response(text, { status, statusText: res.statusText, headers: outHeaders });
-};
+}
+
+globalThis.fetch = doctorFetch;
+
+// ---- node:http / node:https -------------------------------------------------
+
+const SOCKET = path.join(os.tmpdir(), `paypal-doctor-${process.pid}-${crypto.randomBytes(3).toString('hex')}.sock`);
+const HOP = new Set(['host', 'connection', 'content-length', 'transfer-encoding', 'keep-alive', 'x-doctor-origin']);
+
+const bridge = http.createServer(async (req, res) => {
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  const headers = {};
+  for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k)) headers[k] = v;
+  const body = chunks.length ? Buffer.concat(chunks) : undefined;
+  try {
+    const out = await doctorFetch(`${req.headers['x-doctor-origin']}${req.url}`, { method: req.method, headers, body });
+    const buf = Buffer.from(await out.arrayBuffer());
+    const h = {};
+    out.headers.forEach((v, k) => {
+      if (!HOP.has(k)) h[k] = v;
+    });
+    h['content-length'] = String(buf.length);
+    res.writeHead(out.status, h);
+    res.end(buf);
+  } catch {
+    // dropped response / blocked host: look like a dead connection
+    res.destroy();
+  }
+});
+bridge.unref();
+try {
+  fs.rmSync(SOCKET, { force: true });
+} catch {
+  // nothing to clean
+}
+bridge.listen(SOCKET);
+process.on('exit', () => {
+  try {
+    fs.rmSync(SOCKET, { force: true });
+  } catch {
+    // best effort
+  }
+});
+
+const realHttpRequest = http.request;
+
+function targetOf(scheme, args) {
+  let url = null;
+  let options = {};
+  let cb;
+  for (const a of args) {
+    if (typeof a === 'string') url = new URL(a);
+    else if (a instanceof URL) url = a;
+    else if (typeof a === 'function') cb = a;
+    else if (a && typeof a === 'object') options = a;
+  }
+  if (!url) {
+    const proto = options.protocol || scheme;
+    const host = options.hostname || (options.host || 'localhost').replace(/:\d+$/, '');
+    const port = options.port ? `:${options.port}` : '';
+    url = new URL(`${proto}//${host}${port}${options.path || '/'}`);
+  } else if (options.path) {
+    url = new URL(options.path, url);
+  }
+  return { url, options, cb };
+}
+
+function patch(mod, scheme) {
+  const original = mod.request;
+  mod.request = function patchedRequest(...args) {
+    const { url, options, cb } = targetOf(scheme, args);
+    const isPayPal = PAYPAL_HOST.test(url.hostname) || ROUTES[url.origin] !== undefined;
+    if (!isPayPal) return original.apply(this, args);
+    const headers = { ...(options.headers || {}), 'x-doctor-origin': url.origin };
+    return realHttpRequest({ method: options.method || 'GET', socketPath: SOCKET, path: url.pathname + url.search, headers, timeout: options.timeout }, cb);
+  };
+  mod.get = function patchedGet(...args) {
+    const req = mod.request(...args);
+    req.end();
+    return req;
+  };
+}
+patch(https, 'https:');
+patch(http, 'http:');
+// make `import { request } from 'node:https'` see the patched functions too
+syncBuiltinESMExports();

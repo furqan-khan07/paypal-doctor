@@ -45,7 +45,7 @@ Everything lands in a dashboard built on AG Grid. One grid has the findings with
   - Payments v2: refund.
   - Webhooks: verify-webhook-signature, list/create.
   - OAuth2 client credentials, `PayPal-Request-Id` idempotency, the `PayPal-Mock-Response` negative-testing header, and the sandbox card rejection triggers.
-- **A fetch interceptor** loaded into the app under test with `node --import`. It records traffic with secrets redacted, reroutes hosts (that's how the "base URL comes from config" probe works), injects faults, and hard-blocks the live API.
+- **An interceptor** loaded into the app under test with `node --import`. It wraps `fetch`, and bridges `node:http`/`https` through a Unix socket back into the same wrapper. It records traffic with secrets redacted, reroutes hosts (that's how the "base URL comes from config" probe works), injects faults, and hard-blocks the live API.
 - **A local PayPal mock** implementing the behaviour the probes rely on: validation errors like `DECIMAL_PRECISION`, approval, idempotent replay, `ORDER_ALREADY_CAPTURED`, card declines, and webhook signature verification. With it, the whole thing runs with no keys and in CI.
 - **AG Grid Community** (MIT) for the dashboard. It uses custom cell renderers, the theming API driven by CSS variables for light and dark, quick filters, column filters and row selection. Server-sent events stream the run log live.
 - **Kiln & Co.**, a demo Express shop with nine bugs seeded on purpose.
@@ -70,7 +70,7 @@ Everything lands in a dashboard built on AG Grid. One grid has the findings with
 
 ## What's next
 
-- Probe traffic made through axios and `@paypal/paypal-server-sdk`, not just fetch.
+- Try the probes on real apps built on axios and `@paypal/paypal-server-sdk`. The interceptor already bridges `node:http`/`https`, but the demo only exercises fetch.
 - Open the pull request on GitHub directly. Today `apply --commits` makes one commit per verified patch with the proof in each message, and writes the PR description.
 - Python and Java integrations, and the rules I left out because I couldn't tie them to a PayPal doc yet (webhook event-id dedupe, refunds trusted from the client).
 

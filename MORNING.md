@@ -55,7 +55,7 @@ On the dashboard:
 | The Claude answers the demo uses | **Hand-written by me**, in `src/llm/fixtures/kiln-and-co/`, so `npm run demo` works without a key. They're marked `handWritten: true`, the CLI says "(hand-written fixture)", and the dashboard says so in each finding's provenance line. Replace them with real ones (step 4 below) before the video. |
 | `PENDING` capture | Can't be triggered on demand in the sandbox, so it's a fault the interceptor injects on the real response. Labelled as injected in the UI. |
 | Signed webhook accepted | Only PayPal can sign a webhook, and only when delivering to a public URL. So the "real event is still accepted" half of the webhook probes always runs on the mock. The forged-event half runs against the real verify endpoint. |
-| Apps using axios / `@paypal/paypal-server-sdk` | Static scan + patches work, but probes only see `fetch` traffic. |
+| Apps using axios / `@paypal/paypal-server-sdk` | The interceptor now also bridges `node:http`/`https`, with a test using a raw `https.request` app. It has never been run against a real axios or SDK-based app. |
 
 ## Decisions I made at roadblocks
 
