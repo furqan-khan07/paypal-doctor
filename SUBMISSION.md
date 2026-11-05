@@ -1,6 +1,8 @@
 # Devpost submission draft
 
-Draft for the PayPal AI Hackathon page. Edit freely; it's written in your voice, but check every claim against what you actually ran (sandbox numbers especially). Submissions close **Thu Nov 12, 2026, 12:00pm PT**.
+Draft for the PayPal AI Hackathon page. Edit freely; it's written in your voice, but check every claim against what you actually ran. Submissions close **Thu Nov 12, 2026, 12:00pm PT**. Sponsor prize to pick: **AG Grid**.
+
+**Not true yet:** the real sandbox and live Claude haven't run. Everything saying PayPal or Claude did something describes what the tool is built to do, and the only runs so far used the local mock and hand-written fixtures. Confirm each `[CONFIRM ...]` after the real run, or change the sentence.
 
 ---
 
@@ -56,17 +58,20 @@ Everything lands in a dashboard built on AG Grid. One grid has the findings with
 - **Some states you can't trigger on demand.** There's no sandbox switch for "this capture is PENDING", so that scenario takes a real sandbox capture response and rewrites the capture status. The dashboard labels it as an injected fault, not as something PayPal did.
 - **Proving a fix, not just applying one.** The before/after design means a probe has to *fail* on the buggy code. A patch that makes the app reject every webhook would pass a naive test. So each probe also has a positive check: a correctly signed event is still accepted, a normal capture still marks the order paid, an honest cart still checks out.
 - **Keeping secrets out of everything.** Credentials are reduced to a fingerprint in traces, the app's own logs are redacted, and the dashboard only binds to localhost.
+- **Real code is nothing like your own demo.** The detectors were perfect on my seeded store and 80% wrong on real repos. They flagged Stripe webhooks and UI labels, one rule was simply wrong (`/v1/payments/payouts` is PayPal's current Payouts API), and about 1,900 files silently failed to parse because of TypeScript decorators, which took out whole NestJS apps.
 
 ## Accomplishments
 
-- On the demo store, all ten findings (nine static, one from Claude) get patched. Each one is reproduced before its patch and gone after it, the regression pass is 10/10, and a re-scan of the patched code comes back clean.
-- [Fill in after running `npm run demo:real`: the number of real sandbox calls, how long it took, and anything surprising.]
+- [CONFIRM AFTER THE REAL RUN: on the demo store, all ten findings (nine static, one from Claude) get patched. Each one is reproduced before its patch and gone after it, the regression pass is 10/10, and a re-scan of the patched code comes back clean. So far that's true on the mock with hand-written Claude answers.]
+- [Fill in after the real run: the number of real sandbox calls, how long it took, how many of Claude's patches verified first time, and anything surprising.]
+- I ran the static scan on 60 public PayPal repos and checked the findings by hand. The first run was bad: 189 of 237 findings were wrong. After fixing the detectors on a tuning set, I tested on 20 repos they'd never seen, and 23 of 27 findings were correct. I also read the PayPal code in those repos by hand and found 3 more it missed. The method and the caveats are in `docs/validation.md`.
 
 ## What I learned
 
 - PayPal's order-level `status: COMPLETED` doesn't mean you were paid. The capture inside it is what counts.
 - `PayPal-Request-Id` is the difference between a retry and a duplicate. It matters most exactly when something already went wrong.
 - An LLM is much more useful in this loop when its output is checked: evidence has to be on the line it cites, and patches have to apply and parse before anything else happens.
+- A demo you seeded yourself proves very little. Holding back a set of repos and only running on it once was the only way I could get a number I believed.
 
 ## What's next
 
@@ -93,20 +98,6 @@ The rules ask for a list of the AI tools used. List every one honestly, includin
 
 ---
 
-## Video shot list (target 2:45, hard limit 3:00)
+## Video
 
-Record at 1440x900 or larger, dark theme, with the terminal font bumped up. Run `npm run demo:real` once beforehand so the sandbox numbers are real. Then re-run it live or cut to the finished run.
-
-| Time | Shot | Say (roughly) |
-|---|---|---|
-| 0:00-0:15 | Kiln & Co. storefront with PayPal buttons (sandbox). | "This shop takes PayPal. It works, it passes its tests, and it's quietly losing money in nine different ways." |
-| 0:15-0:35 | Devtools: set the mug's price to 0.01 in localStorage, check out with a sandbox buyer, PayPal shows $0.01. Then a one-line `curl` posting a fake webhook, and the order flips to "paid". | "Edit the cart, pay a cent. Or skip paying and just tell the webhook you did." |
-| 0:35-0:55 | Terminal: `npm run demo:real`. Scan output with 10 findings, the one from Claude marked. | "paypal-doctor scans the code: AST detectors for nine rules backed by PayPal's docs, then Claude reviews what they missed." |
-| 0:55-1:15 | Patches streaming in, then verify lines: "before: failed - bug reproduced, after: passed → verified". | "Claude writes a minimal patch per bug. Then each patch is proven: the app runs a real sandbox checkout before and after the patch." |
-| 1:15-1:50 | Dashboard. Findings grid, click the $0.01 bug: the data flow across files, the explanation, before ✗ / after ✓, the diff. | "Before: PayPal was asked for one cent. After: eighteen dollars. That's the sandbox, not a mock." |
-| 1:50-2:15 | Click the capture-retry finding. Open the traffic grid filtered to it: a capture with the "response dropped" fault, then the retry with the same PayPal-Request-Id returning 201. | "The scariest one: PayPal takes the money, the response gets lost, the retry fails, and the order says unpaid. With an idempotency key, the retry gets the original capture back." |
-| 2:15-2:30 | Webhook finding: the forged event is rejected, verify-webhook-signature says FAILURE, and a signed event is still accepted. | |
-| 2:30-2:45 | Regression pass tab at 10/10, then `apply <copy of the store> --yes --commits` and `git log --oneline` showing ten fix commits; open one commit message showing its before/after proof. | "Every probe green on the patched app, re-scan clean. You get one commit per fix, each carrying its own proof." |
-| 2:45-2:55 | README rules table + "npm run demo runs without keys". | "Open source, MIT, runs offline against a PayPal mock, or against your sandbox with your keys." |
-
-Things to double-check before recording: card payments are enabled for the sandbox app (`node bin/paypal-doctor.js preflight` is all green), the dashboard has a fresh sandbox run (the "PayPal calls" tile says "against the sandbox"), and no `.env` value is visible on screen.
+See `VIDEO_SCRIPT.md`: the timed voiceover, the commands that record the footage and merge your voice in, and what changes after the real run.
