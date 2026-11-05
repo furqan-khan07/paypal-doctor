@@ -1,6 +1,11 @@
 /* global agGrid */
 // paypal-doctor dashboard. Two AG Grid (Community) grids: findings and the
 // PayPal traffic the probes generated. Everything else is plain DOM.
+import { saidOf } from './said.js';
+
+// The hosted demo is this same page reading one recorded run from static files:
+// no server, so no Scan, Fix, Verify or Run. See scripts/build-demo.mjs.
+const STATIC = document.documentElement.dataset.static === 'recording';
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -72,6 +77,7 @@ function foundBy(f) {
 
 // Says plainly when what's on screen isn't the real thing.
 function renderNotice(r) {
+  if (STATIC) return;
   const el = $('#notice');
   const parts = [];
   const handWritten = r?.findings?.some((f) => f.llm?.handWritten || f.fix?.handWritten);
@@ -152,21 +158,6 @@ $('#export-findings').onclick = () => findingsGrid.exportDataAsCsv({
 });
 $('#only-selected').onchange = refreshTraffic;
 
-function saidOf(t) {
-  const b = t.responseBody;
-  if (t.error) return t.error;
-  if (t.said) return t.said;
-  if (!b || typeof b !== 'object') return '';
-  if (b.details?.[0]?.issue) return b.details[0].issue;
-  if (b.verification_status) return `verification ${b.verification_status}`;
-  const cap = b.purchase_units?.[0]?.payments?.captures?.[0];
-  if (cap) return `order ${b.status}, capture ${cap.status}`;
-  if (b.access_token) return 'access token';
-  if (b.status) return `${b.id ? `${b.id} ` : ''}${b.status}`;
-  if (b.state) return `v1 ${b.state}`;
-  return b.name || '';
-}
-
 function refreshTraffic() {
   const all = state.report?.traffic || [];
   const only = $('#only-selected').checked && state.selected;
@@ -191,7 +182,7 @@ function renderVitals() {
   const onMock = (r?.traffic || []).filter((t) => t.upstream === 'mock').length;
   const tiles = [
     { k: 'Findings', v: f.length, s: f.length ? `${bySev('critical')} critical · ${bySev('high')} high · ${bySev('medium')} medium` : 'run a scan', cls: f.length ? 'bad' : '' },
-    { k: f.some((x) => x.llm?.handWritten) ? 'From LLM fixture' : 'Found by Claude', v: f.filter((x) => x.source === 'llm').length, s: r?.scan ? `review pass: ${r.scan.llm.mode === 'replay' ? 'replayed' : 'live'}` : '-' },
+    { k: f.some((x) => x.llm?.handWritten) ? 'From LLM fixture' : 'Found by Claude', v: f.filter((x) => x.source === 'llm').length, s: r?.scan ? `review pass: ${STATIC ? 'recorded run' : r.scan.llm.mode === 'replay' ? 'replayed' : 'live'}` : '-' },
     { k: 'Patched', v: r?.fix ? `${patched}/${f.length}` : '-', s: r?.fix ? `patches: ${f.some((x) => x.fix?.handWritten) ? 'hand-written fixtures' : r.fix.llmMode === 'replay' ? 'recorded Claude output' : r.fix.model}` : 'not yet' },
     { k: 'Verified', v: r?.verify ? `${verified}/${patched}` : '-', s: r?.verify ? (failed ? `${failed} failed` : leftOut ? `${leftOut} failed and left out` : 'bug reproduced, then fixed') : 'not yet', cls: r?.verify ? (failed || leftOut ? 'bad' : 'ok') : '' },
     { k: 'Regression pass', v: final ? `${finalGreen}/${final.probes.length}` : '-', s: final ? (final.remainingFindings.length ? `${final.remainingFindings.length} left in re-scan` : 're-scan clean') : 'all patches applied', cls: final ? (final.allPassed ? 'ok' : 'warn') : '' },
@@ -281,7 +272,7 @@ function renderDetail() {
 
   const prov = [];
   if (f.source === 'llm') prov.push(f.llm?.handWritten ? 'from a hand-written stand-in for the Claude review pass' : `found by the Claude review pass${f.llm?.from === 'fixture' ? ' (replayed from a recorded response)' : ''}`);
-  if (fix?.files?.length) prov.push(`patch ${fix.source === 'fixture' ? `replayed from a ${fix.handWritten ? 'hand-written fixture' : `recorded ${fix.model} response`}` : `written live by ${fix.model}`}${fix.failedAttempts?.length ? ', repaired after a failed attempt' : ''}`);
+  if (fix?.files?.length) prov.push(`patch ${fix.source === 'fixture' ? `replayed from a ${fix.handWritten ? 'hand-written fixture' : `recorded ${fix.model} response`}` : `written ${STATIC ? 'in the recorded run' : 'live'} by ${fix.model}`}${fix.failedAttempts?.length ? ', repaired after a failed attempt' : ''}`);
   if (v) {
     // A sandbox run still uses the mock where the sandbox can't do the job, so say which this proof used.
     const used = v.after?.upstream?.length ? v.after.upstream : [v.mode === 'sandbox' ? 'sandbox' : 'mock'];
@@ -373,10 +364,10 @@ document.querySelectorAll('[data-stage]').forEach((b) => (b.onclick = async () =
 // ---------- data -----------------------------------------------------------
 
 async function loadReport() {
-  const res = await fetch('/api/report', { cache: 'no-store' });
+  const res = await fetch(STATIC ? 'report.json' : '/api/report', { cache: 'no-store' });
   state.report = res.ok ? await res.json() : null;
   // Show the mode this report came from, until someone picks one.
-  if (!state.modePicked && state.report?.verify?.mode && !$(`[data-mode="${state.report.verify.mode}"]`).disabled) setMode(state.report.verify.mode);
+  if (!STATIC && !state.modePicked && state.report?.verify?.mode && !$(`[data-mode="${state.report.verify.mode}"]`).disabled) setMode(state.report.verify.mode);
   const rows = state.report?.findings || [];
   findingsGrid.setGridOption('rowData', rows);
   renderVitals();
@@ -389,6 +380,11 @@ async function loadReport() {
   const node = state.selected && findingsGrid.getRowNode(state.selected);
   if (node) node.setSelected(true);
   else renderDetail();
+}
+
+async function loadRecordedLog() {
+  const res = await fetch('log.json', { cache: 'no-store' });
+  if (res.ok) for (const line of await res.json()) appendLog(line);
 }
 
 async function loadMeta() {
@@ -416,6 +412,11 @@ function connect() {
   };
 }
 
-await loadMeta();
-await loadReport();
-connect();
+if (STATIC) {
+  await loadRecordedLog();
+  await loadReport();
+} else {
+  await loadMeta();
+  await loadReport();
+  connect();
+}

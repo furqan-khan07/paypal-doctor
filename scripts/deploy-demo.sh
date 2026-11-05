@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Builds the read-only demo from the recorded real run, audits it, and only then
+# publishes it to Vercel as its own project. Stops if the audit finds anything.
+# This makes a public page, so run it yourself, on purpose.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+node scripts/build-demo.mjs "$@"
+node scripts/audit-demo.mjs
+
+cd demo-site
+vercel link --yes --project paypal-doctor-demo
+vercel deploy --prod --yes

@@ -206,5 +206,8 @@ input[type="search"]:focus { border-color: var(--accent); }
 .diffs summary { cursor: pointer; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--faint); margin-bottom: 8px; }
 .diffs .code + .code { margin-top: 8px; }
 .head-tools { display: flex; gap: 8px; align-items: center; }
+.notice.recording { background: var(--info-bg); color: var(--text); line-height: 1.5; }
+.notice code { font-size: 12px; }
+a.small-btn { display: inline-block; color: var(--text); }
 .notice { margin: 14px 0 0; padding: 8px 12px; border-radius: 8px; background: var(--warn-bg); color: var(--warn); font-size: 13px; }
 .badge.fixture { border-color: var(--warn); color: var(--warn); }
