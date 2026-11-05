@@ -1,0 +1,9 @@
+{
+  "name": "paypal-doctor-video-kit",
+  "private": true,
+  "description": "Records dashboard footage for the demo video with headless Chrome. Kept apart from the main package so the tool itself stays at four dependencies.",
+  "type": "module",
+  "dependencies": {
+    "puppeteer-core": "25.15.0"
+  }
+}

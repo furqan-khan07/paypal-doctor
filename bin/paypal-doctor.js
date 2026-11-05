@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { runScan, runFix, runVerify, loadOrScan } from '../src/pipeline.js';
 import { loadSecrets, hasPayPalKeys, hasAnthropicKey } from '../src/env.js';
-import { log, color } from '../src/log.js';
+import { log, color, onLog } from '../src/log.js';
+import { DOCTOR_DIR } from '../src/report.js';
 
 const HELP = `paypal-doctor - find PayPal integration bugs, patch them, prove the patch in the sandbox
 
@@ -71,6 +72,14 @@ async function main() {
   const mode = args.mode || 'mock';
   if (!['mock', 'sandbox'].includes(mode)) throw new Error(`--mode must be mock or sandbox, got ${mode}`);
   const llmMode = args.llm || 'auto';
+
+  // The log of the last full run, already redacted. The video kit replays it.
+  if (cmd === 'run') {
+    const logFile = path.join(DOCTOR_DIR, 'last-run.log');
+    fs.mkdirSync(DOCTOR_DIR, { recursive: true });
+    fs.writeFileSync(logFile, '');
+    onLog((line) => fs.appendFileSync(logFile, `${JSON.stringify({ level: line.level, text: line.text })}\n`));
+  }
 
   switch (cmd) {
     case 'scan': {

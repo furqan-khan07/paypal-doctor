@@ -55,7 +55,7 @@ npm install
 npm run demo
 ```
 
-That scans the demo store in `demo-store/` (a small shop with ten bugs seeded on purpose), applies the patches, verifies each one against a local PayPal mock, and opens the dashboard at http://localhost:4417.
+That scans the demo store in `demo-store/` (a small shop with ten bugs seeded on purpose), applies the patches, verifies each one against a local PayPal mock, and serves the dashboard at http://localhost:4417.
 
 Without an `ANTHROPIC_API_KEY`, the Claude steps replay recorded answers from `src/llm/fixtures/`. The dashboard marks those as recorded, and the ones shipped for the demo are labelled hand-written. Without PayPal keys, the probes talk to the mock in `src/mock-paypal/`.
 

@@ -18,7 +18,10 @@
     "mock": "node bin/paypal-doctor.js mock",
     "store": "node --env-file=.env demo-store/server.js",
     "forge-webhook": "node scripts/forge-webhook.mjs",
-    "preflight": "node bin/paypal-doctor.js preflight"
+    "preflight": "node bin/paypal-doctor.js preflight",
+    "video:setup": "npm install --prefix scripts/video --no-audit --no-fund",
+    "video:capture": "node scripts/video/capture.mjs",
+    "video:merge": "bash scripts/video/merge.sh"
   },
   "engines": {
     "node": ">=20.10"
