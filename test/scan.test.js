@@ -72,11 +72,14 @@ test('patterns from real codebases: true positives', () => {
   assert.deepEqual(got, [
     'amount-formatting@services/paypal-numbers.ts',
     'capture-status-unchecked@services/paypal-http-status.js',
+    'capture-status-unchecked@services/paypal-keys.js',
     'deprecated-v1-payments@services/paypal-payouts.js',
     'hardcoded-credentials@config/secrets.js',
+    'hardcoded-credentials@services/paypal-keys.js',
     'hardcoded-environment@config/secrets.js',
     'hardcoded-environment@services/paypal-numbers.ts',
     'missing-request-id@services/paypal-http-status.js',
+    'missing-request-id@services/paypal-keys.js',
     'missing-request-id@services/paypal-wrapper-calls.js',
     'missing-request-id@services/paypal-wrapper-calls.js',
     'webhook-unverified@routes/index.js',
@@ -86,5 +89,6 @@ test('patterns from real codebases: true positives', () => {
   assert.match(hook.message, /POST \/paypal\/webhook acts on/, 'only the unverified PayPal route, via controller.method');
   assert.match(findings.find((f) => f.file === 'services/paypal-http-status.js' && f.ruleId === 'missing-request-id').message, /new PayPal-Request-Id every time/);
   assert.match(findings.find((f) => f.ruleId === 'deprecated-v1-payments').message, /\/v1\/payments\/sale/);
-  assert.match(findings.find((f) => f.ruleId === 'hardcoded-credentials').message, /client_secret/);
+  assert.match(findings.find((f) => f.file === 'config/secrets.js' && f.ruleId === 'hardcoded-credentials').message, /client_secret/);
+  assert.equal(findings.filter((f) => f.file === 'services/not-paypal-host.js').length, 0, 'another provider\'s host');
 });

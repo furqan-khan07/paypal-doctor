@@ -27,3 +27,12 @@ exports.onStripeEvent = async (req, res) => {
   if (event.type === 'charge.succeeded') orders.set(event.data.object.id, 'paid');
   res.sendStatus(200);
 };
+
+// Visibly Stripe, even though a helper it shares mentions PayPal.
+exports.receiveStripeHook = async (req, res) => {
+  await sharedReceipt(req.body);
+  res.sendStatus(200);
+};
+async function sharedReceipt(body) {
+  return { paypal: false, stripe: true, body };
+}

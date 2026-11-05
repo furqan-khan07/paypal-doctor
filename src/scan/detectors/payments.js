@@ -39,6 +39,17 @@ function urlOf(call, index, ancestors) {
   return stringValue(node) ?? memberPath(node) ?? '';
 }
 
+// `${base}/v2/checkout/orders` where base is plainly some other host (leftover copy-paste).
+function baseIsPayPalOrUnknown(call, index, ancestors) {
+  let node = call.urlNode;
+  if (node?.type === 'Identifier') node = index.lookup(node.name, ancestors)?.binding?.init ?? node;
+  const first = node?.type === 'TemplateLiteral' ? node.expressions[0] : null;
+  if (first?.type !== 'Identifier') return true;
+  const init = index.lookup(first.name, ancestors)?.binding?.init;
+  const host = init?.type === 'StringLiteral' && /^https?:\/\//.test(init.value) ? init.value : null;
+  return !host || /paypal/i.test(host);
+}
+
 // paypalRequest(creds, `/v2/checkout/orders/${id}/capture`, {...}) or this.makeRequest(path, 'POST').
 // The wrapper may add the header itself, so look inside it too.
 function wrapperCall(ctx, node, ancestors) {
@@ -91,6 +102,8 @@ function headersHaveRequestId(index, file, headersNode, ancestors) {
 
 export function detectPayments(ctx) {
   const { ast, code, file, index, report } = ctx;
+  // The SDK can be imported in another file, so a *Controller receiver in a PayPal file counts too.
+  const mentionsPayPal = /paypal/i.test(file) || /paypal/i.test(code);
   const usesServerSdk = /@paypal\/paypal-server-sdk/.test(code);
 
   walk(ast, (node, ancestors) => {
@@ -98,7 +111,7 @@ export function detectPayments(ctx) {
     const call = httpCall(node);
     if (call && (call.method === 'POST' || call.method === '?')) {
       const url = urlOf(call, index, ancestors);
-      const money = MONEY_POSTS.find((m) => m.re.test(url));
+      const money = baseIsPayPalOrUnknown(call, index, ancestors) ? MONEY_POSTS.find((m) => m.re.test(url)) : null;
       if (money) {
         const op = money.op.replace('$1', url.match(money.re)?.[1] || '');
         let state = headersHaveRequestId(index, file, call.headersNode, ancestors);
@@ -115,7 +128,7 @@ export function detectPayments(ctx) {
           report('missing-request-id', node, { message: PER_CALL_MESSAGE });
         }
       }
-      if (CAPTURE_URL.test(url)) checkCaptureStatus(ctx, node, ancestors);
+      if (money && CAPTURE_URL.test(url)) checkCaptureStatus(ctx, node, ancestors);
     }
 
     // ---- the app's own request helper ----
@@ -130,7 +143,8 @@ export function detectPayments(ctx) {
     }
 
     // ---- @paypal/paypal-server-sdk controller calls ----
-    if (usesServerSdk && (node.type === 'CallExpression') && node.callee.type === 'MemberExpression') {
+    const receiver = node.type === 'CallExpression' && node.callee.type === 'MemberExpression' ? memberPath(node.callee.object) || '' : '';
+    if ((usesServerSdk || (mentionsPayPal && /controller/i.test(receiver))) && node.type === 'CallExpression' && node.callee.type === 'MemberExpression') {
       const method = node.callee.property?.name;
       if (['createOrder', 'captureOrder', 'authorizeOrder', 'refundCapturedPayment', 'captureAuthorizedPayment'].includes(method)) {
         let arg = node.arguments[0];

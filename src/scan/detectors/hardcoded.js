@@ -16,8 +16,9 @@ const readsEnv = (node) => {
 };
 
 function envFallback(node, parent) {
-  // process.env.X || "literal"   /   process.env.X ?? "literal"
-  return parent?.type === 'LogicalExpression' && parent.right === node && ['||', '??'].includes(parent.operator) && readsEnv(parent.left);
+  // process.env.X || "literal", keys.paypal.url ?? "literal": anything configurable on the left
+  return parent?.type === 'LogicalExpression' && parent.right === node && ['||', '??'].includes(parent.operator) &&
+    (readsEnv(parent.left) || parent.left.type === 'MemberExpression' || parent.left.type === 'OptionalMemberExpression' || parent.left.type === 'Identifier');
 }
 
 function inEnvSwitch(ancestors) {
@@ -147,6 +148,15 @@ export function detectHardcoded(ctx) {
     } else if (node.type === 'AssignmentExpression') {
       name = memberPath(node.left);
       valueNode = node.right;
+    }
+    // const [ID, SECRET] = ["...", "..."]
+    if (node.type === 'VariableDeclarator' && node.id.type === 'ArrayPattern' && node.init?.type === 'ArrayExpression') {
+      node.id.elements.forEach((el, i) => {
+        const lit = node.init.elements[i];
+        if (el?.type === 'Identifier' && lit?.type === 'StringLiteral' && paypalFile && /secret/i.test(el.name) && lit.value.length >= 8 && !FAKE_VALUE.test(lit.value)) {
+          report('hardcoded-credentials', node, { message: `${el.name} is a hardcoded secret.` });
+        }
+      });
     }
     if (name && valueNode) {
       const own = name.split('.').pop();
