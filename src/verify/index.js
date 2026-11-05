@@ -93,14 +93,27 @@ function classify(before, after, staticCleared) {
   return 'fixed';
 }
 
-export async function verifyFindings({ root, report, mode = 'mock', keep = false, onFinding }) {
-  const config = report.target.config;
+// Everything verification needs for one run: the upstreams, a place to materialise
+// copies of the app, and the traffic log. Used while the chain is being built, and to
+// re-verify a stored chain.
+export async function createVerifier({ root, config, mode = 'mock', keep = false }) {
   const mock = await mockUpstream();
   let upstream = mock;
   const workRoot = makeWorkRoot(config.name || 'target');
   const traffic = [];
+  const dirs = new Map();
+  let dirCount = 0;
+  const dirFor = (tree) => {
+    if (!dirs.has(tree)) dirs.set(tree, materialize(root, tree, path.join(workRoot, `state-${dirCount++}`)));
+    return dirs.get(tree);
+  };
   const pushTraffic = (entries, tags) => {
     for (const e of entries) if (traffic.length < MAX_TRAFFIC) traffic.push({ ...e, ...tags });
+  };
+  const close = async () => {
+    await mock.stop();
+    if (upstream !== mock) await upstream.stop();
+    if (!keep) removeDir(workRoot);
   };
 
   try {
@@ -109,67 +122,97 @@ export async function verifyFindings({ root, report, mode = 'mock', keep = false
       upstream = await sandboxUpstream();
       log.ok('  sandbox credentials accepted');
     }
-
-    const patched = report.findings.filter((f) => f.fix?.status === 'ready').sort((a, b) => a.fix.chainIndex - b.fix.chainIndex);
-    const states = [];
-    const stateDir = (i) => {
-      if (!states[i]) states[i] = materialize(root, treeAfter(root, report.findings, i), path.join(workRoot, `state-${i}`));
-      return states[i];
-    };
-
     // Make sure the unpatched app starts at all; otherwise every probe would
     // "fail" for reasons that have nothing to do with the patches.
-    const smoke = await startApp({ dir: stateDir(0), config, env: { [config.env?.apiBase || 'PAYPAL_API_BASE']: mock.base, [config.env?.clientId || 'PAYPAL_CLIENT_ID']: mock.creds.clientId, [config.env?.clientSecret || 'PAYPAL_CLIENT_SECRET']: mock.creds.clientSecret }, routes: mock.routes, traceFile: path.join(workRoot, 'smoke.jsonl') });
+    const smoke = await startApp({ dir: dirFor(treeAfter(root, [])), config, env: { [config.env?.apiBase || 'PAYPAL_API_BASE']: mock.base, [config.env?.clientId || 'PAYPAL_CLIENT_ID']: mock.creds.clientId, [config.env?.clientSecret || 'PAYPAL_CLIENT_SECRET']: mock.creds.clientSecret }, routes: mock.routes, traceFile: path.join(workRoot, 'smoke.jsonl') });
     await smoke.stop();
     if (!smoke.ready) {
       throw new Error(`Could not start the app with "${config.start || 'node server.js'}" in a copy of ${root} (waited for ${config.readyPath || '/'}). Has \`npm install\` been run there? Output: ${firstError(smoke.output())}`);
     }
+  } catch (err) {
+    await close();
+    throw err;
+  }
 
-    for (const f of patched) {
-      const i = f.fix.chainIndex;
+  return {
+    get upstream() {
+      return upstream.kind;
+    },
+    traffic,
+    workRoot: keep ? workRoot : null,
+    close,
+
+    // Run one patch's probe on the code before and after it. Traffic is only kept if
+    // the caller keeps this attempt.
+    async verifyPatch(f, beforeTree, afterTree, number) {
       const probe = selectProbe(f, config);
       const ctx = { config, upstream, mock, workDir: workRoot };
-      log.step(`[${i}/${patched.length}] ${f.ruleId} @ ${f.file}:${f.line}${probe ? ` - probe "${probe.title}"` : ' - static check only'}`);
-      const before = probe ? await runProbe(probe, { ...ctx, dir: stateDir(i - 1), label: `${i}-before` }) : null;
+      const tag = `${number}-${Date.now()}`;
+      log.step(`[${number}] ${f.ruleId} @ ${f.file}:${f.line}${probe ? ` - probe "${probe.title}"` : ' - static check only'}`);
+      const before = probe ? await runProbe(probe, { ...ctx, dir: dirFor(beforeTree), label: `${tag}-before` }) : null;
       if (before) log.dim(`    before: ${before.error ? `error (${before.error})` : before.skipped ? `skipped (${before.skipped})` : before.passed ? 'passed (bug not reproduced)' : 'failed - bug reproduced'}`);
-      const after = probe ? await runProbe(probe, { ...ctx, dir: stateDir(i), label: `${i}-after` }) : null;
+      const afterDir = dirFor(afterTree);
+      const after = probe ? await runProbe(probe, { ...ctx, dir: afterDir, label: `${tag}-after` }) : null;
       if (after) log.dim(`    after:  ${after.error ? `error (${after.error})` : after.skipped ? `skipped (${after.skipped})` : after.passed ? 'passed' : 'FAILED'}`);
-      const rescan = scanStatic(stateDir(i));
-      const staticCleared = !rescan.findings.some((x) => x.key === f.key);
+      const staticCleared = !scanStatic(afterDir).findings.some((x) => x.key === f.key);
       const status = classify(before, after, staticCleared);
-      if (before) pushTraffic(before.traffic, { findingId: f.id, phase: 'before', probe: probe.id });
-      if (after) pushTraffic(after.traffic, { findingId: f.id, phase: 'after', probe: probe.id });
       const strip = (r) => (r ? { ...r, traffic: undefined, requests: r.traffic.length } : null);
-      f.verification = { status, mode, probe: probe?.id || null, probeTitle: probe?.title || null, before: strip(before), after: strip(after), staticCleared, at: new Date().toISOString() };
       const line = { verified: log.ok, fixed: log.ok, 'static-only': log.ok, skipped: log.warn, error: log.warn, failed: log.error }[status] || log.info;
       line(`    → ${status}${staticCleared ? '' : ' (static detector still reports it)'}`);
+      return {
+        verification: { status, mode, probe: probe?.id || null, probeTitle: probe?.title || null, before: strip(before), after: strip(after), staticCleared, at: new Date().toISOString() },
+        traffic: {
+          before: before ? before.traffic.map((e) => ({ ...e, phase: 'before', probe: probe.id })) : [],
+          after: after ? after.traffic.map((e) => ({ ...e, phase: 'after', probe: probe.id })) : [],
+        },
+      };
+    },
+
+    keepTraffic(f, t) {
+      pushTraffic(t.before, { findingId: f.id });
+      pushTraffic(t.after, { findingId: f.id });
+    },
+
+    // Every probe once more on the fully patched app.
+    async regression(findings) {
+      const finalTree = treeAfter(root, findings);
+      const finalDir = dirFor(finalTree);
+      const probeIds = [...new Set(findings.map((f) => selectProbe(f, config)?.id).filter(Boolean))];
+      log.step(`Regression pass: ${probeIds.length} probe(s) on the fully patched app`);
+      const results = [];
+      for (const id of probeIds) {
+        const probe = { id, ...PROBES[id], missing: PROBES[id].routes.filter((r) => !config.routes?.[r]) };
+        const res = await runProbe(probe, { config, upstream, mock, workDir: workRoot, dir: finalDir, label: `final-${id}` });
+        pushTraffic(res.traffic, { findingId: null, phase: 'final', probe: id });
+        results.push({ ...res, traffic: undefined, requests: res.traffic.length });
+        (res.passed ? log.ok : res.skipped ? log.warn : log.error)(`  ${res.passed ? '✓' : res.skipped ? '–' : '✗'} ${probe.title}${res.skipped ? ` (skipped: ${res.skipped})` : ''}`);
+      }
+      const remaining = scanStatic(finalDir).findings;
+      return {
+        probes: results,
+        allPassed: results.every((r) => r.passed || r.skipped) && results.some((r) => r.passed),
+        remainingFindings: remaining.map((f) => ({ ruleId: f.ruleId, file: f.file, line: f.line, message: f.message })),
+        patchedFiles: [...finalTree.overrides.keys()],
+      };
+    },
+  };
+}
+
+// Re-verify a chain that's already been written (paypal-doctor verify).
+export async function verifyFindings({ root, report, mode = 'mock', keep = false, onFinding }) {
+  const verifier = await createVerifier({ root, config: report.target.config, mode, keep });
+  try {
+    const patched = report.findings.filter((f) => f.fix?.status === 'ready').sort((a, b) => a.fix.chainIndex - b.fix.chainIndex);
+    for (const f of patched) {
+      const i = f.fix.chainIndex;
+      const { verification, traffic } = await verifier.verifyPatch(f, treeAfter(root, report.findings, i - 1), treeAfter(root, report.findings, i), i);
+      f.verification = verification;
+      verifier.keepTraffic(f, traffic);
       onFinding?.(f);
     }
-
-    // Regression pass on the fully patched app.
-    const finalIndex = patched.length;
-    const finalDir = stateDir(finalIndex);
-    const probeIds = [...new Set(report.findings.map((f) => selectProbe(f, config)?.id).filter(Boolean))];
-    log.step(`Regression pass: ${probeIds.length} probe(s) on the fully patched app`);
-    const finalResults = [];
-    for (const id of probeIds) {
-      const probe = { id, ...PROBES[id], missing: PROBES[id].routes.filter((r) => !config.routes?.[r]) };
-      const res = await runProbe(probe, { config, upstream, mock, workDir: workRoot, dir: finalDir, label: `final-${id}` });
-      pushTraffic(res.traffic, { findingId: null, phase: 'final', probe: id });
-      finalResults.push({ ...res, traffic: undefined, requests: res.traffic.length });
-      (res.passed ? log.ok : res.skipped ? log.warn : log.error)(`  ${res.passed ? '✓' : res.skipped ? '–' : '✗'} ${probe.title}${res.skipped ? ` (skipped: ${res.skipped})` : ''}`);
-    }
-    const remaining = scanStatic(finalDir).findings;
-    const final = {
-      probes: finalResults,
-      allPassed: finalResults.every((r) => r.passed || r.skipped) && finalResults.some((r) => r.passed),
-      remainingFindings: remaining.map((f) => ({ ruleId: f.ruleId, file: f.file, line: f.line, message: f.message })),
-      patchedFiles: [...treeAfter(root, report.findings).overrides.keys()],
-    };
-    return { traffic, final, upstream: upstream.kind, workRoot: keep ? workRoot : null };
+    const final = await verifier.regression(report.findings);
+    return { traffic: verifier.traffic, final, upstream: verifier.upstream, workRoot: verifier.workRoot };
   } finally {
-    await mock.stop();
-    if (upstream !== mock) await upstream.stop();
-    if (!keep) removeDir(workRoot);
+    await verifier.close();
   }
 }

@@ -17,6 +17,7 @@ How to do the job:
 - Fix exactly the one finding you are given. The codebase has other known issues that get their own patches later; leave those alone even when you can see them, so each patch can be verified on its own.
 - Make the smallest change that fixes the finding properly. Match the file's existing style: quotes, semicolons, naming, comment tone.
 - No new npm dependencies. Node 20 built-ins (fetch, crypto.randomUUID, Buffer) are fine.
+- You can see the file with the finding plus the files it imports and the files that import it. Reuse the helpers and names already there instead of writing new ones, and keep to the field names in the request shapes you're given. If something you need isn't shown, say so in notes rather than guessing.
 - Express is the web framework in most targets. If you need the raw request body, capture it with express.json({ verify }) rather than adding a second body parser.
 - Edits are find/replace pairs. Copy \`find\` exactly from the current file (whitespace included) and make it long enough to occur exactly once. \`replace\` is the full new text for that span.
 - Use the environment variable names given under "Configuration" when the fix needs configuration.

@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { latestReport, readReport } from '../src/report.js';
-import { runScan, runFix, runVerify } from '../src/pipeline.js';
+import { runScan, runFix, runVerify, runFixAndVerify } from '../src/pipeline.js';
 import { onLog, log } from '../src/log.js';
 import { hasPayPalKeys, hasAnthropicKey, PROJECT_ROOT } from '../src/env.js';
 import { RULES } from '../src/rules.js';
@@ -44,9 +44,11 @@ export async function startDashboard({ port = 4417, target } = {}) {
       let report = currentReport();
       if (stage === 'scan' || stage === 'all' || !report) report = await runScan({ root, llmMode: llm });
       broadcast('report', { updatedAt: Date.now() });
-      if (stage === 'fix' || stage === 'all') report = await runFix({ root, report, llmMode: llm });
-      broadcast('report', { updatedAt: Date.now() });
-      if (stage === 'verify' || stage === 'all') {
+      if (stage === 'all') {
+        report = await runFixAndVerify({ root, report, llmMode: llm, mode });
+      } else if (stage === 'fix') {
+        report = await runFix({ root, report, llmMode: llm });
+      } else if (stage === 'verify') {
         if (!report.fix) report = await runFix({ root, report, llmMode: llm });
         report = await runVerify({ root, report, mode });
       }

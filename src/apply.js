@@ -65,6 +65,10 @@ export function pullRequestMarkdown(report) {
   if (final) {
     lines.push(`With every patch applied, ${final.probes.filter((p) => p.passed).length}/${final.probes.length} probes pass and ${final.remainingFindings.length ? `${final.remainingFindings.length} finding(s) remain` : 'a re-scan finds nothing'}.`, '');
   }
+  const leftOut = report.findings.filter((f) => f.fix?.status === 'rejected');
+  if (leftOut.length) {
+    lines.push('### Left out', '', 'These patches failed verification, so they are not in this change:', '', ...leftOut.map((f) => `- ${RULES_BY_ID[f.ruleId].title} (\`${f.file}:${f.line}\`)`), '');
+  }
   const notes = patched.filter((f) => f.fix.notes);
   if (notes.length) {
     lines.push('### Before merging', '', ...notes.map((f) => `- ${f.fix.notes}`), '');

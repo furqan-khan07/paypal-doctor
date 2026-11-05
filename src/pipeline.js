@@ -3,7 +3,7 @@ import path from 'node:path';
 import { scanStatic, sortFindings } from './scan/index.js';
 import { scanWithLLM } from './scan/llm-scan.js';
 import { generateFixes } from './fix/index.js';
-import { verifyFindings } from './verify/index.js';
+import { verifyFindings, createVerifier } from './verify/index.js';
 import { createLLM } from './llm/client.js';
 import { loadTargetConfig, writeReport, readReport } from './report.js';
 import { log } from './log.js';
@@ -71,6 +71,32 @@ export async function runVerify({ root, report, mode = 'mock', keep = false }) {
   log.step(`Verifying ${report.findings.filter((f) => f.fix?.status === 'ready').length} patch(es) against ${mode === 'sandbox' ? 'the PayPal sandbox' : 'the local PayPal mock'}`);
   const started = Date.now();
   const { traffic, final, upstream, workRoot } = await verifyFindings({ root, report, mode, keep });
+  finishVerify(report, { traffic, final, upstream, workRoot, mode, started });
+  return report;
+}
+
+// Write and prove each patch as the chain is built, then run the regression pass.
+export async function runFixAndVerify({ root, report, llmMode = 'auto', mode = 'mock', keep = false }) {
+  const llm = createLLM({ mode: llmMode, target: report.target.name });
+  const started = Date.now();
+  log.step(`Writing and verifying patches (${llm.mode === 'replay' ? 'replaying recorded patches' : `${llm.model}, ${llm.mode}`}; verifying against ${mode === 'sandbox' ? 'the PayPal sandbox' : 'the local PayPal mock'})`);
+  for (const f of report.findings) delete f.verification;
+  const verifier = await createVerifier({ root, config: report.target.config, mode, keep });
+  try {
+    await generateFixes({ root, findings: report.findings, llm, config: report.target.config, verifier });
+    const ready = report.findings.filter((f) => f.fix?.status === 'ready').length;
+    const rejected = report.findings.filter((f) => f.fix?.status === 'rejected').length;
+    report.fix = { at: new Date().toISOString(), llmMode: llm.mode, model: llm.model, ready, rejected, unavailable: report.findings.length - ready - rejected, usage: llm.usage };
+    if (llm.usage.calls) log.info(`  Claude: ${llm.usage.calls} call(s), $${llm.usage.costUsd.toFixed(2)} (from response.usage)`);
+    const final = await verifier.regression(report.findings);
+    finishVerify(report, { traffic: verifier.traffic, final, upstream: verifier.upstream, workRoot: verifier.workRoot, mode, started });
+    return report;
+  } finally {
+    await verifier.close();
+  }
+}
+
+function finishVerify(report, { traffic, final, upstream, workRoot, mode, started }) {
   const counts = {};
   for (const f of report.findings) {
     const s = f.verification?.status || (f.fix?.status === 'ready' ? 'not-run' : 'no-patch');
@@ -78,11 +104,10 @@ export async function runVerify({ root, report, mode = 'mock', keep = false }) {
   }
   report.traffic = traffic;
   report.verify = { at: new Date().toISOString(), mode, upstream, ms: Date.now() - started, counts, final, workRoot };
-  if (workRoot) log.info(`Kept the app copies and raw traces in ${workRoot}`);
   writeReport(report);
+  if (workRoot) log.info(`Kept the app copies and raw traces in ${workRoot}`);
   log.step(`Done in ${((Date.now() - started) / 1000).toFixed(1)}s: ${Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(', ')}`);
   log[final.allPassed ? 'ok' : 'warn'](`Regression pass on the fully patched app: ${final.probes.filter((p) => p.passed).length}/${final.probes.length} probes green${final.remainingFindings.length ? `, ${final.remainingFindings.length} static finding(s) left` : ', static scan clean'}`);
-  return report;
 }
 
 export function loadOrScan(root) {

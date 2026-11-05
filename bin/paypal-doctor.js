@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { runScan, runFix, runVerify, loadOrScan } from '../src/pipeline.js';
+import { runScan, runFix, runVerify, runFixAndVerify, loadOrScan } from '../src/pipeline.js';
 import { loadSecrets, hasPayPalKeys, hasAnthropicKey } from '../src/env.js';
 import { log, color, onLog } from '../src/log.js';
 import { DOCTOR_DIR } from '../src/report.js';
@@ -98,9 +98,8 @@ async function main() {
     }
     case 'run': {
       const dir = needDir(args);
-      let report = await runScan({ root: dir, llmMode });
-      report = await runFix({ root: dir, report, llmMode });
-      report = await runVerify({ root: dir, report, mode, keep: !!args.keep });
+      const report = await runScan({ root: dir, llmMode });
+      await runFixAndVerify({ root: dir, report, llmMode, mode, keep: !!args.keep });
       if (args.dashboard) {
         const { startDashboard } = await import('../dashboard/server.js');
         await startDashboard({ port: Number(args.port) || 4417 });
