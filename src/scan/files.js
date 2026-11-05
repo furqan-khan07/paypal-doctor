@@ -28,7 +28,8 @@ export function listFiles(root) {
 }
 
 export function isTestFile(rel) {
-  return /(^|\/)(__tests__|test|tests|spec)\//.test(rel) || /\.(test|spec)\.[cm]?[jt]sx?$/.test(rel);
+  return /(^|\/)(__tests__|test|tests|spec|e2e|cypress|playwright|fixtures|__fixtures__|mocks|__mocks__|test-[\w-]+)\//.test(rel) ||
+    /\.(test|spec|cy|e2e)\.[cm]?[jt]sx?$/.test(rel);
 }
 
 // Browser bundles: a client id there is expected, a secret is not.

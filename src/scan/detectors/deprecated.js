@@ -6,13 +6,18 @@ const DEPRECATED_SDKS = {
   '@paypal/checkout-server-sdk': '@paypal/checkout-server-sdk is deprecated on npm; PayPal points to @paypal/paypal-server-sdk.',
 };
 
+// The resources PayPal's Payments v1 reference marks deprecated. /v1/payments/payouts
+// is the current Payouts API and other gateways (MercadoPago, Getnet...) have their
+// own /v1/payments paths, so neither the path alone nor "v1" is enough.
+const V1_DEPRECATED = /\/v1\/payments\/(payment|sale|authorization|orders|capture|refund)\b/;
+
 export function detectDeprecated(ctx) {
-  const { ast, report } = ctx;
+  const { ast, report, paypalFile } = ctx;
   const seenLines = new Set();
   walk(ast, (node) => {
-    if (node.type === 'StringLiteral' || node.type === 'TemplateLiteral') {
+    if (paypalFile && (node.type === 'StringLiteral' || node.type === 'TemplateLiteral')) {
       const s = stringValue(node);
-      if (s && /\/v1\/payments\//.test(s)) {
+      if (s && V1_DEPRECATED.test(s)) {
         const line = node.loc.start.line;
         if (seenLines.has(line)) return;
         seenLines.add(line);

@@ -53,7 +53,7 @@ export const RULES = [
     summary:
       'A create, capture, authorize or refund call is sent without a PayPal-Request-Id header (or with a constant one). If the response is lost and the call is retried, PayPal treats it as a new request instead of returning the original result.',
     fixGuidance:
-      'Send a PayPal-Request-Id header. For capture/refund, derive it from the resource so retries reuse it (e.g. `capture-${orderID}`); for create, use a fresh crypto.randomUUID() per checkout attempt. Never a constant.',
+      'Send a PayPal-Request-Id header. For an order capture or a full refund, derive it from the resource so retries reuse it (e.g. `capture-${orderID}`); for a partial refund, from your own refund record; for create, a fresh crypto.randomUUID() per checkout attempt. Never a constant, and never a value that changes on retry.',
     docs: [
       { label: 'REST API idempotency (PayPal-Request-Id)', url: 'https://developer.paypal.com/api/rest/reference/idempotency/' },
       { label: 'Orders v2: create / capture accept PayPal-Request-Id', url: 'https://developer.paypal.com/docs/api/orders/v2/#orders_capture' },

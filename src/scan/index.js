@@ -46,6 +46,7 @@ export function scanStatic(root) {
     const ctx = {
       file, code, ast, index,
       isClient: isClientFile(file, code),
+      paypalFile: /paypal/i.test(file) || /paypal/i.test(code),
       report: (ruleId, node, extra = {}) => reportAtLocation(ruleId, file, node.loc.start.line, { node, ...extra }),
       reportAt: (ruleId, line, extra = {}) => reportAtLocation(ruleId, file, line, extra),
       reportAtLocation,

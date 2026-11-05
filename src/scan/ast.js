@@ -58,10 +58,11 @@ export function functionName(fn, ancestors) {
   if (!fn) return '(top level)';
   if (fn.id?.name) return fn.id.name;
   if (fn.key?.name) return fn.key.name;
+  // Callers pass ancestors with or without the function itself on the end.
   const idx = ancestors.lastIndexOf(fn);
-  const parent = idx > 0 ? ancestors[idx - 1] : null;
+  const parent = idx === -1 ? ancestors[ancestors.length - 1] : ancestors[idx - 1];
   if (parent?.type === 'VariableDeclarator' && parent.id?.name) return parent.id.name;
-  if (parent?.type === 'ObjectProperty' && parent.key) return keyName(parent.key);
+  if ((parent?.type === 'ObjectProperty' || parent?.type === 'ClassProperty' || parent?.type === 'ClassPrivateProperty') && parent.key) return keyName(parent.key) || '(anonymous)';
   if (parent?.type === 'AssignmentExpression') return memberPath(parent.left) || '(anonymous)';
   if (parent?.type === 'CallExpression') {
     const route = routeOf(parent);

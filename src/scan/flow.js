@@ -10,6 +10,13 @@ const PRICE_KEYS = /^(price|unit_?price|unitPrice|amount|total|totalPrice|total_
 const ARRAY_METHODS = new Set(['reduce', 'map', 'forEach', 'filter', 'find', 'some', 'every', 'flatMap']);
 const MAX_HOPS = 2;
 
+// exports.foo / module.exports.foo / this.foo -> foo. Null for anonymous
+// functions and route labels like "POST /api/orders".
+function shortName(name) {
+  if (!name || name.startsWith('(') || name.includes(' ')) return null;
+  return name.split('.').pop();
+}
+
 export class RepoIndex {
   constructor() {
     this.files = new Map(); // rel -> { ast, code }
@@ -33,8 +40,8 @@ export class RepoIndex {
         if (node.id.type === 'ObjectPattern') for (const p of node.id.properties) if (p.value?.type === 'Identifier') imports.set(p.value.name, src);
       }
       if (FUNCTION_TYPES.has(node.type)) {
-        const name = functionName(node, ancestors);
-        if (name && !name.startsWith('(') && !name.includes(' ')) {
+        const name = shortName(functionName(node, ancestors));
+        if (name) {
           if (!this.functions.has(name)) this.functions.set(name, []);
           this.functions.get(name).push({ file, node, ancestors: ancestors.slice() });
         }
@@ -72,8 +79,8 @@ export class RepoIndex {
   // Calls like `ordersController.createOrder()` on some library object are
   // not callers of the app's own createOrder().
   callersOf(fnNode, fnAncestors) {
-    const name = functionName(fnNode, fnAncestors);
-    if (!name || name.startsWith('(') || name.includes(' ')) return [];
+    const name = shortName(functionName(fnNode, fnAncestors));
+    if (!name) return [];
     const fnFile = [...this.files.entries()].find(([, f]) => fnAncestors[0] === f.ast || fnAncestors[0] === f.ast.program)?.[0];
     const isLocal = (src) => typeof src === 'string' && src.startsWith('.');
     return (this.calls.get(name) || []).filter((c) => {

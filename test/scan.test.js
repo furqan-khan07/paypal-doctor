@@ -64,3 +64,21 @@ test('@paypal/paypal-server-sdk (TypeScript): the buggy file is flagged, the cor
   ]);
   assert.equal(findings.filter((f) => f.file === 'src/paypal-ok.ts').length, 0);
 });
+
+test('patterns from real codebases: true positives', () => {
+  const { findings } = scanStatic('test/fixtures/real-world');
+  const got = summary(findings);
+  assert.deepEqual(got, [
+    'capture-status-unchecked@services/paypal-http-status.js',
+    'deprecated-v1-payments@services/paypal-payouts.js',
+    'hardcoded-credentials@config/secrets.js',
+    'hardcoded-environment@config/secrets.js',
+    'missing-request-id@services/paypal-http-status.js',
+    'webhook-unverified@routes/index.js',
+  ]);
+  const hook = findings.find((f) => f.ruleId === 'webhook-unverified');
+  assert.match(hook.message, /POST \/paypal\/webhook acts on/, 'only the unverified PayPal route, via controller.method');
+  assert.match(findings.find((f) => f.ruleId === 'missing-request-id').message, /new PayPal-Request-Id every time/);
+  assert.match(findings.find((f) => f.ruleId === 'deprecated-v1-payments').message, /\/v1\/payments\/sale/);
+  assert.match(findings.find((f) => f.ruleId === 'hardcoded-credentials').message, /client_secret/);
+});

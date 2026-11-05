@@ -1,10 +1,14 @@
 // hardcoded-environment + hardcoded-credentials
-import { walk, stringValue, keyName, memberPath } from '../ast.js';
+import { walk, stringValue, keyName, memberPath, enclosingFunction } from '../ast.js';
 
 const SANDBOX_HOST = /\bapi(-m)?\.sandbox\.paypal\.com\b/;
 const LIVE_HOST = /\bapi(-m)?\.paypal\.com\b/;
-const SECRET_NAME = /(client_?secret|clientsecret|paypal_?secret|api_?secret|secret_?key|^secret$|password)/i;
+const BARE_HOST = /^api(-m)?\.(sandbox\.)?paypal\.com$/;
+const CLIENT_SECRET_NAME = /(client_?secret|^secret$|secret_?key|api_?secret|app_?secret)/i;
+const ANY_SECRET_NAME = /(secret|password|passwd)/i;
 const PLACEHOLDER = /^(your[-_ ]|<|x{3,}|placeholder|changeme|replace|todo|\*+$|\$\{)/i;
+const FAKE_VALUE = /\b(fake|mock|dummy|example|placeholder|changeme|test)\b/i;
+const PAYPAL_FILE = /paypal-rest-sdk|checkout-server-sdk|paypal-server-sdk|api(-m)?\.(sandbox\.)?paypal\.com/;
 
 const readsEnv = (node) => {
   const p = memberPath(node) || '';
@@ -46,10 +50,50 @@ function inSdkEnvSwitch(ancestors) {
   return false;
 }
 
+// getSetting('paypalEnvironment', 'https://api-m.sandbox.paypal.com')
+function isConfigDefault(node, parent) {
+  return parent?.type === 'CallExpression' && parent.arguments.includes(node) && parent.arguments[0] !== node &&
+    /config|setting|env|option/i.test(memberPath(parent.callee) || '');
+}
+
+// A host used to recognise a URL, not to call it: href.startsWith(HOST), certUrl.replace(HOST, '')...
+function usedOnlyToParse(node, parent, ancestors, code) {
+  if (parent?.type === 'CallExpression' && /\.(startsWith|includes|indexOf|replace|match|endsWith)$/.test(memberPath(parent.callee) || '')) return true;
+  if (parent?.type === 'VariableDeclarator' && parent.id.type === 'Identifier') {
+    const fn = enclosingFunction(ancestors);
+    const scope = code.slice((fn ?? { start: 0 }).start, (fn ?? { end: code.length }).end);
+    const name = parent.id.name;
+    const uses = [...scope.matchAll(new RegExp(`\\b${name}\\b`, 'g'))].length - 1;
+    const parsing = [...scope.matchAll(new RegExp(`\\.(startsWith|includes|indexOf|replace|match|endsWith)\\(\\s*${name}\\b`, 'g'))].length;
+    return uses > 0 && uses === parsing;
+  }
+  return false;
+}
+
+// getConfig(...) || ...; return 'https://api-m.sandbox...' as the last-resort default.
+function inConfigReader(ancestors, code) {
+  const fn = enclosingFunction(ancestors);
+  return !!fn && /\b(getConfig|getSetting|process\.env|config\.|settings?\b)/.test(code.slice(fn.start, fn.end));
+}
+
+// `paypal: { client_secret: ... }` -> "paypal.client_secret"
+function nameChain(ancestors, own) {
+  const names = [];
+  for (const a of ancestors) {
+    if (a.type === 'ObjectProperty') names.push(keyName(a.key));
+    if (a.type === 'VariableDeclarator' && a.id.type === 'Identifier') names.push(a.id.name);
+  }
+  names.push(own);
+  return names.filter(Boolean).join('.');
+}
+
 export function detectHardcoded(ctx) {
-  const { ast, report, isClient, code } = ctx;
+  const { ast, report, isClient, code, file } = ctx;
   let reportedEnv = false;
   const usesServerSdk = /@paypal\/paypal-server-sdk/.test(code);
+  // A file that names both hosts is choosing between them.
+  const knowsBothHosts = SANDBOX_HOST.test(code) && LIVE_HOST.test(code.replace(new RegExp(SANDBOX_HOST.source, 'g'), ''));
+  const paypalFile = /paypal/i.test(file) || PAYPAL_FILE.test(code);
 
   walk(ast, (node, ancestors) => {
     const parent = ancestors[ancestors.length - 1];
@@ -66,13 +110,17 @@ export function detectHardcoded(ctx) {
     }
 
     // ---- environment host literals ----
-    if (!reportedEnv && (node.type === 'StringLiteral' || node.type === 'TemplateLiteral')) {
+    if (!reportedEnv && !knowsBothHosts && (node.type === 'StringLiteral' || node.type === 'TemplateLiteral')) {
       const s = stringValue(node) || '';
       const isSandbox = SANDBOX_HOST.test(s);
-      const isLive = !isSandbox && LIVE_HOST.test(s) && /https?:\/\//.test(s);
-      if ((isSandbox || isLive) && /https?:\/\//.test(s) && !/\/sdk\/js/.test(s) && !/www\.paypal/.test(s)) {
+      const isLive = !isSandbox && LIVE_HOST.test(s);
+      const isUrl = /https?:\/\//.test(s);
+      const bareHostProp = parent?.type === 'ObjectProperty' && /^host(name)?$/i.test(keyName(parent.key) || '') && BARE_HOST.test(s);
+      if ((isSandbox || isLive) && (isUrl || bareHostProp) && !/\/sdk\/js/.test(s) && !/www\.paypal/.test(s) && !/\/notifications\/certs/.test(s)) {
         const insideUrlBuild = parent?.type === 'TemplateLiteral' || parent?.type === 'BinaryExpression';
-        if (!envFallback(node, parent) && !inEnvSwitch(ancestors) && !(insideUrlBuild && envFallback(parent, ancestors[ancestors.length - 2]))) {
+        const exempt = envFallback(node, parent) || inEnvSwitch(ancestors) || isConfigDefault(node, parent) ||
+          usedOnlyToParse(node, parent, ancestors, code) || inConfigReader(ancestors, code) || (insideUrlBuild && envFallback(parent, ancestors[ancestors.length - 2]));
+        if (!exempt) {
           reportedEnv = true;
           report('hardcoded-environment', node, {
             message: `The ${isSandbox ? 'sandbox' : 'LIVE'} API host is hardcoded (${s.match(/https?:\/\/[^/'"`\s$]+/)?.[0] || s}). Switching environments means editing code${isSandbox ? ' - and shipping this to production would send real buyers to the sandbox' : ''}.`,
@@ -81,7 +129,7 @@ export function detectHardcoded(ctx) {
       }
     }
 
-    // ---- secret literals ----
+    // ---- PayPal secret literals ----
     if (isClient) return true;
     let name = null;
     let valueNode = null;
@@ -95,21 +143,31 @@ export function detectHardcoded(ctx) {
       name = memberPath(node.left);
       valueNode = node.right;
     }
-    if (name && valueNode && SECRET_NAME.test(name.split('.').pop())) {
-      let literal = null;
-      if (valueNode.type === 'StringLiteral') literal = valueNode;
-      else if (valueNode.type === 'LogicalExpression' && valueNode.right.type === 'StringLiteral' && readsEnv(valueNode.left)) literal = valueNode.right;
-      if (literal && literal.value.length >= 8 && !PLACEHOLDER.test(literal.value)) {
-        const fallback = literal !== valueNode;
-        report('hardcoded-credentials', node, {
-          message: fallback
-            ? `${name} falls back to a hardcoded secret when the env var is missing. The secret is in git history, and a misconfigured deploy silently runs on the baked-in account.`
-            : `${name} is a hardcoded secret.`,
-        });
+    if (name && valueNode) {
+      const own = name.split('.').pop();
+      const chain = nameChain(ancestors, name);
+      const namedPayPal = /paypal/i.test(chain) && ANY_SECRET_NAME.test(own);
+      // In a PayPal file an unqualified client secret counts, but not one filed
+      // under another provider: { facebook: { clientSecret: ... } }.
+      const holder = [...ancestors].reverse().find((a) => a.type === 'ObjectProperty');
+      const holderKey = holder ? keyName(holder.key) || '' : '';
+      const otherProvider = holderKey && !/paypal|credential|auth|oauth|config|option|client|env|setting/i.test(holderKey);
+      if (namedPayPal || (paypalFile && !otherProvider && CLIENT_SECRET_NAME.test(own))) {
+        let literal = null;
+        if (valueNode.type === 'StringLiteral') literal = valueNode;
+        else if (valueNode.type === 'LogicalExpression' && valueNode.right.type === 'StringLiteral' && readsEnv(valueNode.left)) literal = valueNode.right;
+        if (literal && literal.value.length >= 8 && !/\s/.test(literal.value) && !PLACEHOLDER.test(literal.value) && !FAKE_VALUE.test(literal.value)) {
+          const fallback = literal !== valueNode;
+          report('hardcoded-credentials', node, {
+            message: fallback
+              ? `${name} falls back to a hardcoded secret when the env var is missing. The secret is in git history, and a misconfigured deploy silently runs on the baked-in account.`
+              : `${name} is a hardcoded secret.`,
+          });
+        }
       }
     }
     // Buffer.from("id:secret") / btoa("id:secret")
-    if (node.type === 'CallExpression' && /^(Buffer\.from|btoa)$/.test(memberPath(node.callee) || '')) {
+    if (paypalFile && node.type === 'CallExpression' && /^(Buffer\.from|btoa)$/.test(memberPath(node.callee) || '')) {
       const s = node.arguments[0]?.type === 'StringLiteral' ? node.arguments[0].value : null;
       if (s && /^[A-Za-z0-9_-]{8,}:[A-Za-z0-9_-]{8,}$/.test(s)) {
         report('hardcoded-credentials', node, { message: 'A literal client-id:secret pair is base64-encoded for Basic auth.' });

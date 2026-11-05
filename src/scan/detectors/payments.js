@@ -16,9 +16,22 @@ const MONEY_POSTS = [
 const CAPTURE_URL = /\/v2\/checkout\/orders\/[^/]+\/capture\/?$|\/v2\/payments\/authorizations\/[^/]+\/capture\/?$/;
 const CAPTURE_STATUS_CHECK = [
   /captures(\?\.)?\s*\[\s*\d+\s*\]\s*(\?\.|\.)\s*status\b/,
-  /\bcaptures?\w*(\?\.|\.)\s*status\b/i,
+  // capture.status, captureDetails.status - but not captureResponse.status (HTTP) or captureResult.status (the order)
+  /\bcaptures?(?!\w*res)\w*(\?\.|\.)\s*status\b/i,
   /captures(\?\.)?\.(find|filter|every|some|map|forEach)\([^;]*\bstatus\b/,
+  // const c = ...captures?.[0]; ... c.status
+  /\b(\w+)\s*=\s*[^;\n]*captures(\?\.)?\s*\[\s*\d+\s*\][^;\n]*[\s\S]*?\b\1(\?\.|\.)\s*status\b/,
 ];
+// Evidence the code decides "we got paid". Without it the function is a wrapper or
+// relays the capture to its caller or the browser, so there's nothing to flag yet.
+const PAID_EVIDENCE = [
+  /\.status\s*(===?|=)\s*["'`]COMPLETED["'`]/,
+  /["'`](paid|captured|succeeded)["'`]/i,
+  /\b(mark\w*(Paid|Complete)\w*|setPaid|isPaid|is_paid|paidAt|paid_at|fulfil\w*)\b/i,
+];
+const PER_CALL_ID = /randomUUID|uuid|nanoid|Date\.now|Math\.random|new Date/i;
+const ORDER_CAPTURE_URL = /\/v2\/checkout\/orders\/[^/]+\/capture\/?$/;
+const PER_CALL_MESSAGE = 'The capture call generates a new PayPal-Request-Id every time it runs, so a retry after a lost response is not recognised as a retry and gets ORDER_ALREADY_CAPTURED. Derive the id from the order id.';
 
 function urlOf(call) {
   return stringValue(call.urlNode) ?? memberPath(call.urlNode) ?? '';
@@ -34,7 +47,11 @@ function headersHaveRequestId(index, file, headersNode, ancestors) {
   if (obj?.type === 'CallExpression' && /Headers$/.test(memberPath(obj.callee) || '')) obj = obj.arguments[0];
   if (!obj || obj.type !== 'ObjectExpression') return 'unknown';
   const prop = objectProp(obj, 'paypal-request-id', { ci: true });
-  if (prop) return prop.value?.type === 'StringLiteral' ? 'constant' : 'present';
+  if (prop) {
+    if (prop.value?.type === 'StringLiteral') return 'constant';
+    const text = index.files.get(file)?.code.slice(prop.value.start, prop.value.end) || '';
+    return PER_CALL_ID.test(text) ? 'per-call' : 'present';
+  }
   if (obj.properties.some((p) => p.type === 'SpreadElement')) return 'unknown';
   return 'missing';
 }
@@ -61,6 +78,8 @@ export function detectPayments(ctx) {
           report('missing-request-id', node, { message: `The ${op} call sends no PayPal-Request-Id header, so a retry after a lost response is processed as a brand-new request.` });
         } else if (state === 'constant') {
           report('missing-request-id', node, { message: `The ${op} call sends a constant PayPal-Request-Id. Every request then looks like a retry of the first one.` });
+        } else if (state === 'per-call' && ORDER_CAPTURE_URL.test(url)) {
+          report('missing-request-id', node, { message: PER_CALL_MESSAGE });
         }
       }
       if (CAPTURE_URL.test(url)) checkCaptureStatus(ctx, node, ancestors);
@@ -73,8 +92,11 @@ export function detectPayments(ctx) {
         let arg = node.arguments[0];
         if (arg?.type === 'Identifier') arg = index.lookup(arg.name, ancestors)?.binding?.init ?? arg;
         if (arg?.type === 'TSAsExpression') arg = arg.expression;
-        if (arg?.type === 'ObjectExpression' && !objectProp(arg, 'paypalRequestId')) {
+        const idProp = arg?.type === 'ObjectExpression' ? objectProp(arg, 'paypalRequestId') : null;
+        if (arg?.type === 'ObjectExpression' && !idProp) {
           report('missing-request-id', node, { message: `${method}() is called without paypalRequestId, so retries are not idempotent.` });
+        } else if (idProp && method === 'captureOrder' && PER_CALL_ID.test(code.slice(idProp.value.start, idProp.value.end))) {
+          report('missing-request-id', node, { message: PER_CALL_MESSAGE });
         }
         if (method === 'captureOrder') checkCaptureStatus(ctx, node, ancestors);
       }
@@ -153,24 +175,26 @@ function checkPurchaseUnit(ctx, unit, ancestors) {
 function checkCaptureStatus(ctx, callNode, ancestors) {
   const { index, file, code } = ctx;
   const fn = enclosingFunction(ancestors);
-  const scopes = [{ file, node: fn ?? ctx.ast, code }];
-  let reportAt = { file, line: callNode.loc.start.line };
+  const scopes = [{ file, line: callNode.loc.start.line, text: code.slice((fn ?? ctx.ast).start, (fn ?? ctx.ast).end) }];
   if (fn) {
     const fnAncestors = ancestors.slice(0, ancestors.lastIndexOf(fn));
     for (const caller of index.callersOf(fn, fnAncestors)) {
       const callerFn = enclosingFunction(caller.ancestors);
-      const callerCode = index.files.get(caller.file).code;
-      scopes.push({ file: caller.file, node: callerFn ?? index.files.get(caller.file).ast, code: callerCode });
-      reportAt = { file: caller.file, line: caller.node.loc.start.line };
+      const callerFile = index.files.get(caller.file);
+      const scopeNode = callerFn ?? callerFile.ast;
+      scopes.push({ file: caller.file, line: caller.node.loc.start.line, text: callerFile.code.slice(scopeNode.start, scopeNode.end) });
     }
   }
-  const texts = scopes.map((s) => s.code.slice(s.node.start, s.node.end));
+  const texts = scopes.map((s) => s.text);
   if (texts.some((t) => CAPTURE_STATUS_CHECK.some((re) => re.test(t)))) return;
-  const orderLevel = texts.some((t) => /\.status\s*===?\s*["'`]COMPLETED["'`]/.test(t));
+  const deciding = scopes.filter((s) => PAID_EVIDENCE.some((re) => re.test(s.text)));
+  if (deciding.length === 0) return;
+  const reportAt = deciding[deciding.length - 1];
+  const orderLevel = texts.some((t) => /\.status\s*(===?|=)\s*["'`]COMPLETED["'`]/.test(t));
   ctx.reportAtLocation('capture-status-unchecked', reportAt.file, reportAt.line, {
     message: orderLevel
       ? 'The order is marked paid from the order-level status (=== "COMPLETED") without reading purchase_units[0].payments.captures[0].status. A PENDING or DECLINED capture still comes back with order status COMPLETED.'
-      : 'The capture result is used without checking purchase_units[0].payments.captures[0].status (COMPLETED vs PENDING / DECLINED).',
+      : 'The payment is treated as done without checking purchase_units[0].payments.captures[0].status (COMPLETED vs PENDING / DECLINED).',
     related: reportAt.file === file && reportAt.line === callNode.loc.start.line ? [] : [{ file, line: callNode.loc.start.line }],
   });
 }
