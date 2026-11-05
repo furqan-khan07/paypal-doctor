@@ -12,7 +12,7 @@ Costs are the token counts in each `response.usage`, multiplied by the published
 |---|---|---|
 | Commit | `e659116` | `d76c505` |
 | Findings | 11 (9 static, 2 from Claude) | 11 (9 static, 2 from Claude) |
-| Findings Claude's review invented | 0 rejected by validation | 0 rejected by validation |
+| Claude findings rejected by validation | 0 | 0 |
 | Patches that applied first time | 11 of 11 | 11 of 11 |
 | **Verified: bug shown before, gone after** | **3 of 11** | **11 of 11** |
 | Patches needing a repair | not possible yet | 0 |

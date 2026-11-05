@@ -14,7 +14,12 @@ function git(dir, args) {
   return execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
-const upstreamLabel = (v) => (v?.mode === 'sandbox' ? 'the PayPal sandbox' : 'a local PayPal mock');
+// A sandbox run still uses the mock where the sandbox can't do the job, so say which this proof used.
+const upstreamLabel = (v) => {
+  const used = v?.after?.upstream?.length ? v.after.upstream : [v?.mode === 'sandbox' ? 'sandbox' : 'mock'];
+  if (!used.includes('sandbox')) return 'a local PayPal mock';
+  return used.includes('mock') ? 'the PayPal sandbox, with the signed-event check on a local mock' : 'the PayPal sandbox';
+};
 
 function proofLines(f) {
   const v = f.verification;
@@ -50,7 +55,7 @@ export function pullRequestMarkdown(report) {
   const lines = [
     `## PayPal integration fixes`,
     '',
-    `paypal-doctor found ${report.findings.length} issue(s) in this codebase and wrote ${patched.length} patch(es). Each patch was checked with a scripted checkout against ${report.verify?.upstream === 'sandbox' ? 'the PayPal sandbox' : 'a local PayPal mock'}, before and after the change.`,
+    `paypal-doctor found ${report.findings.length} issue(s) in this codebase and wrote ${patched.length} patch(es). Each patch was checked with a scripted checkout against ${report.verify?.upstream === 'sandbox' ? 'the PayPal sandbox' : 'a local PayPal mock'}, before and after the change.${report.verify?.upstream === 'sandbox' && patched.some((f) => f.verification?.after?.upstream?.includes('mock')) ? ' Some checks can\'t run on the sandbox, so they used a local mock, and each commit message says which.' : ''}`,
     '',
     '| # | Issue | Where | Before | After | Verdict |',
     '|---|---|---|---|---|---|',

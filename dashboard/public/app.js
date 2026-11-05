@@ -195,7 +195,7 @@ function renderVitals() {
     { k: 'Patched', v: r?.fix ? `${patched}/${f.length}` : '-', s: r?.fix ? `patches: ${f.some((x) => x.fix?.handWritten) ? 'hand-written fixtures' : r.fix.llmMode === 'replay' ? 'recorded Claude output' : r.fix.model}` : 'not yet' },
     { k: 'Verified', v: r?.verify ? `${verified}/${patched}` : '-', s: r?.verify ? (failed ? `${failed} failed` : leftOut ? `${leftOut} failed and left out` : 'bug reproduced, then fixed') : 'not yet', cls: r?.verify ? (failed || leftOut ? 'bad' : 'ok') : '' },
     { k: 'Regression pass', v: final ? `${finalGreen}/${final.probes.length}` : '-', s: final ? (final.remainingFindings.length ? `${final.remainingFindings.length} left in re-scan` : 're-scan clean') : 'all patches applied', cls: final ? (final.allPassed ? 'ok' : 'warn') : '' },
-    { k: 'PayPal calls', v: onSandbox || r?.traffic?.length || 0, s: r?.verify ? (onSandbox ? `to the sandbox${onMock ? `, plus ${onMock} on the local mock` : ''}` : 'to the local mock') : '-', cls: '' },
+    { k: 'PayPal calls', v: onSandbox || r?.traffic?.length || 0, s: r?.verify ? (onSandbox ? `sandbox${onMock ? `, plus ${onMock} on the mock` : ''}` : 'to the local mock') : '-', cls: '' },
   ];
   $('#vitals').innerHTML = tiles.map((t) => `<div class="vital ${t.cls || ''}"><div class="k">${esc(t.k)}</div><div class="v">${esc(t.v)}</div><div class="s">${esc(t.s)}</div></div>`).join('');
   const target = r?.target;
@@ -350,10 +350,14 @@ function setRunning(job) {
   $('#job-state').textContent = job ? `· running ${job.stage}` : '';
 }
 
+function setMode(mode) {
+  state.mode = mode;
+  document.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x.dataset.mode === mode));
+}
 document.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => {
   if (b.disabled) return;
-  state.mode = b.dataset.mode;
-  document.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x === b));
+  state.modePicked = true;
+  setMode(b.dataset.mode);
 }));
 document.querySelectorAll('[data-llm]').forEach((b) => (b.onclick = () => {
   if (b.disabled) return;
@@ -371,6 +375,8 @@ document.querySelectorAll('[data-stage]').forEach((b) => (b.onclick = async () =
 async function loadReport() {
   const res = await fetch('/api/report', { cache: 'no-store' });
   state.report = res.ok ? await res.json() : null;
+  // Show the mode this report came from, until someone picks one.
+  if (!state.modePicked && state.report?.verify?.mode && !$(`[data-mode="${state.report.verify.mode}"]`).disabled) setMode(state.report.verify.mode);
   const rows = state.report?.findings || [];
   findingsGrid.setGridOption('rowData', rows);
   renderVitals();
@@ -390,6 +396,7 @@ async function loadMeta() {
   state.meta = await res.json();
   const sb = $('#sandbox-btn');
   sb.disabled = !state.meta.keys.paypal;
+  if (sb.disabled && state.mode === 'sandbox') setMode('mock');
   sb.title = state.meta.keys.paypal ? 'Run probes against api-m.sandbox.paypal.com' : 'Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET to .env to enable';
   const live = $('#live-btn');
   live.disabled = !state.meta.keys.anthropic;

@@ -184,7 +184,7 @@ const SHOTS = [
   },
   {
     id: '2-one-cent-cart',
-    seconds: 22,
+    seconds: 20,
     async run(page) {
       await clickFinding(page, row(amount));
       await sleep(5000);
@@ -197,7 +197,7 @@ const SHOTS = [
   },
   {
     id: '3-lost-capture-response',
-    seconds: 32,
+    seconds: 30,
     async run(page) {
       await clickFinding(page, row(capture));
       await sleep(1500);
@@ -211,7 +211,7 @@ const SHOTS = [
         window.dispatchEvent(new Event('resize'));
       });
       await sleep(600);
-      await pointAt(page, '#traffic-grid .ag-row[row-index="4"]', 500, 14);
+      await pointAt(page, '#traffic-grid .ag-row[row-index="6"]', 500, 14);
       await sleep(7000);
       await pointAt(page, '#traffic-grid .ag-row[row-index="13"]', 500, 14);
     },
@@ -237,13 +237,13 @@ const SHOTS = [
   },
   {
     id: '5-the-run',
-    seconds: 20,
+    seconds: 16,
     async run(page) {
       await page.evaluate(() => {
         document.body.classList.add('show-traffic');
         window.dispatchEvent(new Event('resize'));
       });
-      await replayLog(page, 17);
+      await replayLog(page, 13);
     },
     async after(page) {
       await page.evaluate(() => {
@@ -266,7 +266,22 @@ const SHOTS = [
     },
   },
   {
-    id: '7-real-code',
+    id: '7-first-run',
+    seconds: 18,
+    async run(page) {
+      await moveCursor(page, -60, -60);
+      // From docs/real-runs.md. The first run's report isn't in the repo, so these are typed in.
+      await showCard(page, `
+        <h1>The first real run</h1>
+        <p>Same store, real Claude, real PayPal sandbox. Details in docs/real-runs.md.</p>
+        <div class="row">
+          <div><div class="big bad">3 of 11</div><p>verified on the first run. Claude couldn't see<br>enough of the code, and one bad patch broke the rest</p></div>
+          <div><div class="big ok">11 of 11</div><p>on the second, with each patch checked before<br>the next is written. 12 Claude calls, $0.51</p></div>
+        </div>`);
+    },
+  },
+  {
+    id: '8-real-code',
     seconds: 19,
     async run(page) {
       await moveCursor(page, -60, -60);
@@ -280,8 +295,8 @@ const SHOTS = [
     },
   },
   {
-    id: '8-commits',
-    seconds: 13,
+    id: '9-commits',
+    seconds: 10,
     async run(page) {
       const patched = report.findings.filter((f) => f.fix?.status === 'ready').sort((a, b) => a.fix.chainIndex - b.fix.chainIndex);
       const titles = patched.map((f) => `fix(paypal): ${f.title} (${f.file})`).join('\n');
@@ -293,7 +308,7 @@ const SHOTS = [
     },
   },
   {
-    id: '9-close',
+    id: '10-close',
     seconds: 8,
     async run(page) {
       await showCard(page, `
