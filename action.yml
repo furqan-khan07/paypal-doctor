@@ -1,0 +1,52 @@
+name: paypal-doctor scan
+description: Static scan for PayPal integration bugs on pull requests. It reads your code and never runs it. No keys.
+author: Furqan Khan
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  path:
+    description: Folder to scan, inside the checkout.
+    default: .
+  github-token:
+    description: Used to read the files a pull request changes and to comment. The default token is enough.
+    default: ${{ github.token }}
+  comment:
+    description: Comment the findings on the pull request. They always go in the job summary.
+    default: "true"
+  fail-on:
+    description: Fail the check on findings at this severity or above, in files the pull request changes. One of none, low, medium, high, critical.
+    default: none
+
+outputs:
+  findings:
+    description: Number of findings in the folder that was scanned.
+    value: ${{ steps.scan.outputs.findings }}
+  findings-in-pr:
+    description: How many of those are in files the pull request changes.
+    value: ${{ steps.scan.outputs.findings-in-pr }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: "20"
+
+    # This installs the action's own dependencies, in the action's folder, with
+    # install scripts off. Nothing gets installed from the repo being scanned.
+    - name: Install the scanner
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --omit=dev --ignore-scripts --no-audit --no-fund --workspaces=false
+
+    - name: Scan
+      id: scan
+      shell: bash
+      env:
+        INPUT_PATH: ${{ inputs.path }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_COMMENT: ${{ inputs.comment }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+      run: node "$GITHUB_ACTION_PATH/scripts/action-scan.mjs"

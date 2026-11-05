@@ -1,0 +1,36 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    # Skipped while the repo is private, so it spends no Actions minutes.
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "20"
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - name: Run the action on the demo store
+        id: scan
+        uses: ./
+        with:
+          path: demo-store
+          comment: "false"
+      - name: It should find the nine seeded bugs the static rules cover
+        env:
+          FINDINGS: ${{ steps.scan.outputs.findings }}
+        run: test "$FINDINGS" = "9"
