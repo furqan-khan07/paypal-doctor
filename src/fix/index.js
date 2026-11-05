@@ -74,7 +74,8 @@ export async function generateFixes({ root, findings, llm, config, onFinding }) 
         break;
       }
       if (!answer) {
-        lastError = llm.mode === 'replay' ? 'No recorded fix for this finding (replay mode, no ANTHROPIC_API_KEY).' : 'LLM is off.';
+        // In replay, a missing retry fixture means the first recorded patch's error stands.
+        if (attempt === 1) lastError = llm.mode === 'replay' ? 'No recorded fix for this finding (replay mode, no ANTHROPIC_API_KEY).' : 'LLM is off.';
         break;
       }
       try {
@@ -84,7 +85,6 @@ export async function generateFixes({ root, findings, llm, config, onFinding }) 
       } catch (err) {
         if (!(err instanceof PatchError)) throw err;
         lastError = err.message;
-        if (answer.from !== 'live') break;
         prompt += `\n\nYour previous patch could not be applied: ${err.message}\nReturn a corrected patch against the same current file contents.`;
       }
     }

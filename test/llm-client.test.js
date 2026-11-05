@@ -31,6 +31,8 @@ const server = http.createServer((req, res) => {
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${server.address().port}`;
 process.env.ANTHROPIC_API_KEY = 'test-key-not-real';
+// Fake calls shouldn't land in the real usage log.
+process.env.PAYPAL_DOCTOR_HOME = fs.mkdtempSync(path.join(os.tmpdir(), 'paypal-doctor-llm-'));
 const { createLLM, FIXTURES_ROOT } = await import('../src/llm/client.js');
 const { FIX_SYSTEM, FIX_SCHEMA } = await import('../src/prompts.js');
 

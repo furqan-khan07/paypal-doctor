@@ -187,7 +187,7 @@ function renderVitals() {
   const finalGreen = final ? final.probes.filter((p) => p.passed).length : 0;
   const tiles = [
     { k: 'Findings', v: f.length, s: f.length ? `${bySev('critical')} critical · ${bySev('high')} high · ${bySev('medium')} medium` : 'run a scan', cls: f.length ? 'bad' : '' },
-    { k: f.some((x) => x.llm?.handWritten) ? 'From LLM fixture' : 'Found by Claude', v: f.filter((x) => x.source === 'llm').length, s: r?.scan ? `review pass: ${r.scan.llm.mode === 'replay' ? 'replayed' : r.scan.llm.mode}` : '-' },
+    { k: f.some((x) => x.llm?.handWritten) ? 'From LLM fixture' : 'Found by Claude', v: f.filter((x) => x.source === 'llm').length, s: r?.scan ? `review pass: ${r.scan.llm.mode === 'replay' ? 'replayed' : 'live'}` : '-' },
     { k: 'Patched', v: r?.fix ? `${patched}/${f.length}` : '-', s: r?.fix ? `patches: ${f.some((x) => x.fix?.handWritten) ? 'hand-written fixtures' : r.fix.llmMode === 'replay' ? 'recorded Claude output' : r.fix.model}` : 'not yet' },
     { k: 'Verified', v: r?.verify ? `${verified}/${patched}` : '-', s: r?.verify ? (failed ? `${failed} failed` : 'bug reproduced, then fixed') : 'not yet', cls: r?.verify ? (failed ? 'bad' : 'ok') : '' },
     { k: 'Regression pass', v: final ? `${finalGreen}/${final.probes.length}` : '-', s: final ? (final.remainingFindings.length ? `${final.remainingFindings.length} left in re-scan` : 're-scan clean') : 'all patches applied', cls: final ? (final.allPassed ? 'ok' : 'warn') : '' },

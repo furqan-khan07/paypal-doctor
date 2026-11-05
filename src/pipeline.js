@@ -31,6 +31,7 @@ export async function runScan({ root, llmMode = 'auto', report = newReport(root)
       llmResult = await scanWithLLM({ root, files, staticFindings: findings, llm });
       if (llmResult.skipped) log.warn('  no recorded LLM review for this target - skipped (add ANTHROPIC_API_KEY to run it live)');
       else log.info(`  ${llmResult.findings.length} extra finding(s), ${llmResult.rejected.length} rejected by validation`);
+      if (llm.usage.calls) log.info(`  Claude: ${llm.usage.calls} call(s), $${llm.usage.costUsd.toFixed(2)} (from response.usage)`);
     } catch (err) {
       log.warn(`  LLM pass failed: ${err.message}`);
       llmResult = { findings: [], rejected: [], error: err.message };
@@ -43,7 +44,7 @@ export async function runScan({ root, llmMode = 'auto', report = newReport(root)
     files: files.length,
     parseErrors,
     static: findings.length,
-    llm: { mode: llm.mode, model: llm.model, count: llmResult.findings.length, rejected: llmResult.rejected, skipped: !!llmResult.skipped, error: llmResult.error || null },
+    llm: { mode: llm.mode, model: llm.model, count: llmResult.findings.length, rejected: llmResult.rejected, skipped: !!llmResult.skipped, error: llmResult.error || null, usage: llm.usage },
   };
   delete report.fix;
   delete report.verify;
@@ -59,6 +60,7 @@ export async function runFix({ root, report, llmMode = 'auto' }) {
   await generateFixes({ root, findings: report.findings, llm, config: report.target.config });
   const ready = report.findings.filter((f) => f.fix?.status === 'ready').length;
   report.fix = { at: new Date().toISOString(), llmMode: llm.mode, model: llm.model, ready, unavailable: report.findings.length - ready, usage: llm.usage };
+  if (llm.usage.calls) log.info(`  Claude: ${llm.usage.calls} call(s), $${llm.usage.costUsd.toFixed(2)} (from response.usage)`);
   delete report.verify;
   report.traffic = [];
   writeReport(report);
