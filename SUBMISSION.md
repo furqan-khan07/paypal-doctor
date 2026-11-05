@@ -98,6 +98,26 @@ The rules ask for a list of the AI tools used. List every one honestly, includin
 
 ---
 
+## Devpost draft status
+
+Draft: https://devpost.com/submit-to/31302-paypal-ai-hackathon/manage/submissions/1282940-paypal-doctor/project-overview
+
+Filled in and saved: name, elevator pitch, the story (everything above, with its `[CONFIRM ...]` markers), Built with tags, the repo link, Individual, N/A for organization, New project, the technology requirement answer, AG Grid as the sponsor tool, the repo URL, the demo URL and testing instructions.
+
+Left for you, because they're your own answers:
+
+- **Project details:** the YouTube link (required; public or unlisted, per the form), and images if you want them.
+- **Additional info:**
+  - Submitter country of residence, and the Canada province field (or `N/A`).
+  - Your PayPal integration rating, why, and whether they can contact you.
+  - Your AG Grid experience (optional).
+  - **Which AI tools you leveraged while working on this project.** This one asks about your whole process, so the Claude API line below isn't the full answer. List everything you used to build it and make the video.
+  - The level of learning, and whether you gained AI value for your career.
+  - The three eligibility boxes: age of majority, eligible jurisdiction, not an employee of a promotion entity.
+- **Submit step:** the rules checkbox and the Submit button.
+
+Check first that "Submitter type: Individual" is right. If Pierce, Otabek or anyone else is on this with you, it should be Team.
+
 ## Video
 
 See `VIDEO_SCRIPT.md`: the timed voiceover, the commands that record the footage and merge your voice in, and what changes after the real run.

@@ -1,139 +1,140 @@
-# Good morning
+# Where this stands
 
-The **Repo** is https://github.com/furqan-khan07/paypal-doctor. It's **private**, has an MIT LICENSE, and 19 commits, all pushed.
+Repo: https://github.com/furqan-khan07/paypal-doctor. It's **private**, and GitHub detects the MIT license. Deadline: **Thu Nov 12, 12:00pm PT**.
 
-**TL;DR**
-- Find → fix → verify works end to end on the demo store, with a local PayPal mock and recorded Claude answers.
-- All ten findings come out *verified*: each bug is reproduced before its patch and gone after it.
-- The regression pass is 10/10 and the static re-scan is clean. The AG Grid dashboard is done.
-- What's left is real-world: your keys, one real sandbox + Claude run, the video, flipping the repo public, submitting.
-
-Your `.env` keys were still empty when I finished, so **nothing here has touched the real PayPal sandbox or the real Claude API yet**. See "What's mocked or untested" below.
+**The short version**
+- The tool works end to end on the mock with hand-written Claude answers.
+- It has now been checked against 60 public repos, which made the static scan far better.
+- The video kit and the Devpost draft are ready.
+- **It has still never touched the real PayPal sandbox or the real Claude API**, because `.env` is empty. The sandbox app itself is ready. Most of what's left starts with you pasting the keys.
 
 ---
 
-## What works (try these)
+## What's left for you, in order
+
+**1. PayPal keys (1 minute).** The sandbox app is ready: **Default Application** already has Expanded checkout and Advanced Credit and Debit Card Payments on, so there's nothing to change. Open https://developer.paypal.com/dashboard/applications/sandbox and click **Default Application** (I left that page open in Chrome). Copy **Client ID** and **Secret key 1** (the copy icon beside each) into `.env` as `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`.
+
+**2. Anthropic key.** https://console.anthropic.com → API keys → paste as `ANTHROPIC_API_KEY` in `.env`.
+
+**3. Check, then do the real run (roughly $1-3 in Claude, an estimate).**
 
 ```bash
-cd ~/Documents/PROJECTS/paypal-doctor
-npm install            # already done on this machine
-npm test               # 13 tests, ~9s: detectors (REST + server SDK), mock, interceptor, end-to-end, sandbox code path, apply --commits, Claude client
-npm run demo           # scan -> fix -> verify on the mock, then the dashboard at http://localhost:4417
+npm run preflight
 ```
-
-Other things worth poking at:
 
 ```bash
-node bin/paypal-doctor.js status           # which keys are set (prints set/empty only)
-node bin/paypal-doctor.js scan demo-store   # just the findings
-node bin/paypal-doctor.js dashboard         # dashboard for the latest report
-npm run store                               # the demo shop on :8888 with your .env (PayPal buttons need PAYPAL_CLIENT_ID)
-npm run forge-webhook -- <orderId>          # post a fake PAYMENT.CAPTURE.COMPLETED to the running shop
-node bin/paypal-doctor.js apply <dir> --yes --commits   # one git commit per verified patch + PULL_REQUEST.md
+node bin/paypal-doctor.js run demo-store --mode sandbox --llm record --dashboard
 ```
 
-Careful with that last one on `demo-store` itself: it would commit the fixes into this repo and the demo would have no bugs left. Try it on a copy (see `test/apply.test.js` for how).
+If a patch fails verification, keep the true result. It's better material than a clean sweep. Then commit what it recorded, which replaces my hand-written fixtures:
 
-On the dashboard:
-- Click a finding to see the flagged code, Claude's explanation, the before ✗ / after ✓ probe checks, and the diff.
-- The bottom grid shows every PayPal request, both the app's and the probe's own (buyer approval, replays). Tick "only the selected finding" to filter it.
-- Scan / Fix / Verify / Run all work from the page, and the log streams live.
-- Both grids export to CSV.
+```bash
+git add src/llm/fixtures && git commit -m "Record Claude fixtures from a live run" && git push
+```
 
-**The demo, in numbers:**
-- 9 seeded bugs found by the static pass, plus 1 that only the (recorded) Claude review finds: the webhook treating `PAYMENT.CAPTURE.PENDING` as paid.
-- 10 patches, each verified before/after.
-- A mock run takes about 8 seconds and makes about 155 PayPal calls. About 140 come from the app; the rest are the probe acting as the buyer, marked "probe" in the traffic grid.
+I was asked to do this step too, but it needs the keys. Once they're in `.env` I can run it and fix whatever breaks, if you'd rather hand it back.
 
-## What's mocked or untested
+**4. Update the claims.** In `SUBMISSION.md`, resolve each `[CONFIRM ...]` and fill in the real numbers. Do the same in the Devpost story, since it has the same markers.
+
+**5. Video.** Follow `VIDEO_SCRIPT.md`:
+
+```bash
+npm run video:capture
+```
+
+Then record `voiceover.m4a` in QuickTime and merge it. macOS will ask for microphone access once, for QuickTime.
+
+```bash
+npm run video:merge -- voiceover.m4a
+```
+
+Watch it, then upload to YouTube. The form accepts public or unlisted.
+
+**6. Finish the Devpost draft:** https://devpost.com/submit-to/31302-paypal-ai-hackathon/manage/submissions/1282940-paypal-doctor/project-overview. `SUBMISSION.md` lists exactly which fields I left for you, and why. The one that needs some thought: **"Which AI tools have you leveraged while working on this project?"** It asks about your whole process, so the product's Claude API line isn't a full answer. I left it blank because it's your statement to make.
+
+**7. Decide what stays in the public repo.** `MORNING.md`, `SUBMISSION.md` and `VIDEO_SCRIPT.md` are working notes, and this file reads like what it is: a hand-over to you. I'd `git rm` them before going public. They'd still be in the history, which is your call. Nothing sensitive is in them.
+
+**8. Go public and submit.**
+
+```bash
+gh repo edit furqan-khan07/paypal-doctor --visibility public --accept-visibility-change-consequences
+```
+
+Then tick the rules box and press Submit on Devpost yourself.
+
+---
+
+## What changed in this round
+
+**Real-world validation** (`docs/validation.md`). This was the big one.
+
+| Run | Repos | Findings | Correct | Low value | Wrong |
+|---|---|---|---|---|---|
+| First run, before any fixes | 22 | 237 | 48 | - | 189 (80%) |
+| Held-out set 1, after tuning | 18 | 23 | 16 | 6 | 1 |
+| Held-out set 2, after more fixes | 20 | 27 | 23 | 0 | 4 (3 are one file copied three times) |
+
+Reading the PayPal code by hand in the held-out repos also found misses: 10 in set 1 (13 repos read), 3 in set 2 (6 repos read). Most are fixed now. That's a spot check, not a recall number.
+
+What it exposed in my own work:
+- Secrets and webhooks weren't scoped to PayPal.
+- `/v1/payments/payouts` is PayPal's current API, so that rule was wrong.
+- About 1,900 files silently failed to parse because of decorators, which took out whole NestJS apps.
+- Arrow functions weren't being followed across files.
+- The dashboard badged my hand-written fixture as "found by Claude". It now says "fixture", with a banner.
+
+**Audit for going public**
+- No secrets in git history: a regex scan for ten key shapes found nothing, and `detect-secrets` over all 174 unique blobs found only env var names and obvious fakes. `gitleaks` isn't on conda-forge, so I used that instead.
+- `.env` was never tracked.
+- All 11 fixtures are labelled `handWritten: true`.
+- GitHub detects MIT.
+- A fresh clone works from the README alone: `npm install`, `npm test`, `npm run demo`.
+- All commits are under your identity.
+
+**Video kit**
+- ffmpeg 9.0.2 is in a new conda env, `paypal-doctor-video`.
+- `npm run video:capture` records real 1080p footage with headless Chrome, with **no macOS permission needed**, and retakes `docs/dashboard.png` at 3200x2080.
+- `npm run video:merge` was tested with a stand-in voice, including the over-2:59 refusal.
+- `VIDEO_SCRIPT.md` is timed. I measured the lines with macOS `say`: 2:17 of speech in a 2:48 video.
+
+**The current footage is a preview. Don't upload it.** It shows a "Demo data" banner, and the script says PayPal and Claude did things that, in this footage, the mock and my fixtures did. One `npm run video:capture` after the real run fixes all of it. `VIDEO_SCRIPT.md` has the shot-by-shot table.
+
+**Devpost.** The draft is created under your account and saved. It's still marked DRAFT, I didn't submit it, and I didn't tick any eligibility or rules box.
+
+---
+
+## Still unverified
 
 | Thing | State |
 |---|---|
-| Real PayPal sandbox | **Never run.** The sandbox code path is tested with the mock standing in for `api-m.sandbox.paypal.com`, so routing, the webhook lookup, mixed sandbox/mock probes and secret redaction are covered. Real sandbox behaviour isn't. |
-| Approving orders with a test card (`confirm-payment-source`) | Built from PayPal's docs, untested for real. Needs card payments enabled on your sandbox app. If it fails, every capture-related probe gets **skipped**, with the reason in the dashboard. |
-| Declined capture via the `CCREJECT-REFUSED` card name | Built from PayPal's card-testing page, untested. If the sandbox rejects at approval instead of at capture, the probe notes it and relies on the other two scenarios. |
-| Claude live calls | **Never run.** The request shape is tested against a fake Anthropic server (model, JSON-schema output, cached system prompt, fallback beta), and so is parsing and fixture record/replay. |
-| The Claude answers the demo uses | **Hand-written by me**, in `src/llm/fixtures/kiln-and-co/`, so `npm run demo` works without a key. They're marked `handWritten: true`, the CLI says "(hand-written fixture)", and the dashboard says so in each finding's provenance line. Replace them with real ones (step 4 below) before the video. |
-| `PENDING` capture | Can't be triggered on demand in the sandbox, so it's a fault the interceptor injects on the real response. Labelled as injected in the UI. |
-| Signed webhook accepted | Only PayPal can sign a webhook, and only when delivering to a public URL. So the "real event is still accepted" half of the webhook probes always runs on the mock. The forged-event half runs against the real verify endpoint. |
-| Apps using axios / `@paypal/paypal-server-sdk` | The interceptor now also bridges `node:http`/`https`, with a test using a raw `https.request` app. It has never been run against a real axios or SDK-based app. |
+| Real PayPal sandbox | **Never run.** The code path is tested with the mock standing in. |
+| Approving orders with a test card | Built from PayPal's docs, untested for real. Card payments are on for the app, but `npm run preflight` is what actually proves it. |
+| The `CCREJECT-REFUSED` decline | Built from PayPal's card-testing page, untested. If it's refused at approval, the probe notes that and relies on its other scenarios. |
+| Live Claude calls | **Never run.** Request shape tested against a fake API. Whether the model's patches pass the probes is the biggest open question. |
+| "Claude finds the `PENDING` webhook bug" | So far that's my hand-written fixture. Claude may or may not find it. |
+| `webhook-unverified` on real code | No real-world catch yet. The handlers I read in these 60 repos all verify, so it has only proved itself on my fixtures and the demo. |
+| Probes on an axios or SDK-based app | The `http` bridge has a test but has never run on a real app of that kind. |
+| Claude pass on public repos | The validation covers the static scan only. |
+| My triage | One reader (me), going by the source. I didn't run any of those apps. |
+
+Also: when I first opened the hackathon page, it offered "Edit project" for a submission #1282928. That link then said "not authorized" and the page went back to "Start project". I didn't create it and don't know what it was, so check My projects shows only #1282940.
 
 ## Decisions I made at roadblocks
 
-1. **Plain JavaScript (ESM), no TypeScript build.** Zero build steps for judges cloning it. Node 20.17 can't strip types natively.
-2. **Pinned dependency versions at least ~2 weeks old.**
-   - `@babel/parser` 7.29.9: v8 needs Node 22.
-   - `@anthropic-ai/sdk` 0.135.0: the 1.x line was under 10 days old.
-   - `ag-grid-community` 36.2.0, `diff` 9.0.0, `express` 5.3.0.
-3. **No-browser buyer approval** via `confirm-payment-source` with PayPal's published sandbox Visa (`4012888888881881`, override with `PAYPAL_DOCTOR_TEST_CARD`). It was the only way I found to get an order to `APPROVED` from a script.
-4. **The fix chain is sequential.** Patch N is written on top of patches 1..N-1, in a fixed order (config → money math → API calls → webhook), so every patch can be proven on its own.
-5. **Patches are find/replace edits, not unified diffs.** LLM-written diffs often don't apply. Edits must match exactly once and the file must still parse; in live mode a failed patch gets one retry with the error.
-6. **The `client-supplied-amount` rule stays.** PayPal's docs *imply* it rather than state it: the server computes purchase units from the cart, and the official sample does the same. Noted in `docs/rules.md`. Rules I couldn't back with a doc are listed there as "considered, not shipped".
-7. **The webhook id for probes.** If `PAYPAL_WEBHOOK_ID` is empty, sandbox mode **creates a webhook on your sandbox app**, pointing at `https://example.com/paypal-doctor-probe`, or reuses one with that URL. It's needed for verify-webhook-signature. It's harmless, but you'll see it in the dashboard; delete it whenever.
-8. **Credential probes always run on the mock**, so fake/baked-in credentials never get sent to PayPal.
-9. **The live API is hard-blocked** in the interceptor, regardless of config.
-10. **Model `claude-opus-5-5`.** Structured outputs, effort `high`, prompt caching on the system prompt, and server-side fallbacks (`fallbacks: "default"`). If your account rejects the fallback beta, it retries without it. Override with `PAYPAL_DOCTOR_MODEL`.
-11. **The dashboard is localhost-only and rejects cross-origin POSTs**, since it can start processes.
-12. **AG Grid Community only.** It's MIT-licensed (checked the LICENSE in the package), with no enterprise features, loaded from `node_modules` rather than a CDN.
-13. **The verifier checks the app can start before probing.** Otherwise a missing `npm install` showed up as "10 patches failed".
-14. **The demo store** is an npm workspace, so `npm install` at the root installs its Express too.
-15. **README tone.** Personal but without invented anecdotes. It mentions pandas-doctor as the predecessor, since that's in your brief. Edit to taste.
-16. **Added after the core worked:**
-    - `apply --commits`: one commit per verified patch, with the proof in the message, plus PULL_REQUEST.md.
-    - `node:http`/`https` interception, for axios and the SDK.
-    - Detector support for `@paypal/paypal-server-sdk`, with a TypeScript fixture.
-    - CSV export on the dashboard.
-    - A Host-header check on the dashboard against DNS rebinding.
-17. **No CI workflow.** I didn't add a GitHub Actions workflow, since it would spend Actions minutes on your account while the repo is private. If you want a badge, add `.github/workflows/test.yml` running `npm ci && npm test` on Node 20 after flipping it public.
+Earlier ones are in the git history of this file. From this round:
 
-## What you need to do next
-
-1. **Keys.** Paste into `.env`:
-   - `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`: developer.paypal.com → Apps & Credentials → **Sandbox** → your app.
-   - `ANTHROPIC_API_KEY`.
-   - `PAYPAL_WEBHOOK_ID` is optional (see decision 7).
-2. **Card payments on the sandbox app.** In the app's settings, make sure card payments (Advanced Credit and Debit Card Payments) are enabled. New US sandbox apps usually have it on.
-3. **Preflight:**
-   ```bash
-   npm run preflight
-   ```
-   This walks token → create → approve with the test card → capture → idempotent replay → v2 refund → webhook → forged signature. Everything should be ✓. If "Approve with a sandbox test card" fails, it's step 2.
-4. **The real run, recording Claude's answers over my hand-written ones:**
-   ```bash
-   node bin/paypal-doctor.js run demo-store --mode sandbox --llm record --dashboard
-   ```
-   (`npm run demo:real` is the same thing but with `--llm live`, so nothing is saved.)
-   - Look at each patch Claude wrote. If one fails verification, that's real data and honestly a better demo than everything passing. But if a patch is plainly bad, re-run that one.
-   - Cost estimate: 11 Opus 5.5 calls with high effort, roughly $1-3 per full run.
-   - After it records, commit the new fixtures (`git add src/llm/fixtures && git commit -m "Record Claude fixtures from a live run"`), so `npm run demo` replays the real thing.
-5. **Check the dashboard after the sandbox run.**
-   - The "PayPal calls" tile should say "against the sandbox".
-   - The traffic grid should show real `paypal-debug-id`s.
-   - Note the numbers for SUBMISSION.md's "Accomplishments" placeholder.
-6. **Retake `docs/dashboard.png`.** Mine is an 800px-wide capture from a preview pane; a real full-width screenshot will look much better.
-7. **Video.** Follow the shot list in `SUBMISSION.md`.
-   - For the storefront shots you need `npm run store` with your sandbox client id, plus a sandbox *personal* account to log into the PayPal popup. I didn't sign into anything.
-   - Upload it to YouTube yourself, public, under 3 minutes.
-8. **Fill in `SUBMISSION.md`:** the "AI tools used" list must include everything you used, and fill in the accomplishments numbers.
-9. **Flip the repo public right before submitting:**
-   ```bash
-   gh repo edit furqan-khan07/paypal-doctor --visibility public --accept-visibility-change-consequences
-   ```
-   Then check GitHub shows "MIT license" in the sidebar.
-10. **Submit on Devpost before Thu Nov 12, 12:00pm PT.** Pick a Grand/Honorable track, and **AG Grid** as the sponsor prize.
-
-## Where things are
-
-- `README.md` covers setup, how it works, the CLI, config for your own app, safety and limitations.
-- `docs/rules.md` has each rule's detection logic, how its probe proves it, and the doc link; plus the rules I dropped.
-- `SUBMISSION.md` is the Devpost description draft, the AI tools section and the video shot list.
-- `scripts/demo-fixtures.mjs` regenerates the hand-written fixtures if you change the demo store.
-- Commits are all under your git identity, with no co-author trailers.
+1. **PayPal's developer site wasn't signed in at first, so I moved on until you signed in.** Then I used the existing Default Application rather than creating another, and changed nothing on it: card payments were already on. I never revealed or copied the secret. Devpost was signed in as `furqan-khan07` (I checked).
+2. **Two held-out sets, not one.** Fixing what the first exposed meant it could no longer give an independent number.
+4. **Selection was by stars from GitHub code search,** fixed before seeing results, so I couldn't pick repos that flattered the tool.
+5. **`Individual` for submitter type** on the Devpost draft, since the brief describes you entering alone. Change it if that's wrong.
+6. **Left blank on Devpost:** your country, ratings, opinions and the AI tools question. They're your answers, not facts I can look up.
+7. **Saved the Devpost story with its `[CONFIRM ...]` markers in,** so an unverified claim can't pass as fact.
+8. **Video kit kept out of the main dependencies** (`scripts/video/` has its own package), so the tool stays at four.
 
 ## If something breaks
 
-- `paypal-doctor: Could not start the app …`: the verifier couldn't boot the target. For the demo store, re-run `npm install` at the repo root.
-- Probes **skipped** with "would not approve the order with a test card": card payments are off for the sandbox app (step 2).
-- `PayPal rejected the client id / secret`: these are sandbox keys, not live. Watch for whitespace in `.env`.
-- `DEBUG=1 node bin/paypal-doctor.js …` prints stack traces.
-- `--keep` on `run`/`verify` keeps the temp copies of the app and the raw JSONL traces. The path is printed in the report under `verify.workRoot`.
+- `Could not start the app …`: re-run `npm install` at the repo root.
+- Probes **skipped** with "would not approve the order with a test card": card payments are off for the sandbox app (step 1).
+- `PayPal rejected the client id / secret`: use sandbox keys, not live ones, and watch for whitespace in `.env`.
+- `npm run video:capture` says "No verified report": run `npm run demo` or the real run first.
+- `DEBUG=1 node bin/paypal-doctor.js …` prints stack traces. `--keep` keeps the temp app copies and raw traces.
