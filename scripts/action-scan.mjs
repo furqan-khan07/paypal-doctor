@@ -198,7 +198,7 @@ async function main() {
   summary(body);
   const inPr = changed ? findings.filter((f) => changed.has(f.path)) : findings;
   for (const f of (inPr.length ? inPr : findings).slice(0, MAX_ANNOTATIONS)) console.log(annotation(f, RULES_BY_ID[f.ruleId]));
-  console.log(`paypal-doctor: ${plural(findings.length, 'finding')}, ${inPr.length} in files this pull request changes.`);
+  console.log(`paypal-doctor: ${plural(findings.length, 'finding')}${changed ? `, ${inPr.length} in files this pull request changes` : ''}.`);
   setOutput({ findings: findings.length, 'findings-in-pr': inPr.length });
 
   if (api && wantComment) {
