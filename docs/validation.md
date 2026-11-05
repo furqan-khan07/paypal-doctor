@@ -12,7 +12,7 @@ GitHub code search for `/v2/checkout/orders`, `verify-webhook-signature`, `purch
 - **Held-out set 1:** the rest of the top 40. Scanned once with the detectors frozen, then triaged.
 - **Held-out set 2:** the next 20 by stars. I needed this because fixing what set 1 exposed meant set 1 could no longer give an independent number. Scanned once, frozen, triaged.
 
-The clones are sparse (source files only) and nothing in them is run. The scan only parses. To reproduce the selection and the scan: `node scripts/validate-public.mjs <scratch-folder>`.
+The clones are sparse (source files only) and nothing in them is run. The scan only parses. To reproduce the selection and the scan: `node scripts/validate-public.mjs <scratch-folder>`. Search results and repos change over time, so a re-run won't match exactly (a later search found 680 repos, and the same top three).
 
 A finding counts as **correct** if the code really does what the rule says. **Low value** means it's true but doesn't matter in that spot, such as a one-off admin script. **Wrong** means the rule doesn't apply.
 
