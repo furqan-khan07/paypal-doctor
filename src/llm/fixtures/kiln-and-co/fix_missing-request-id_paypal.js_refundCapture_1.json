@@ -1,0 +1,17 @@
+{
+  "key": "fix|missing-request-id|paypal.js|refundCapture|1",
+  "model": "claude-opus-5-5",
+  "recordedAt": "2026-11-05T08:17:18.852Z",
+  "handWritten": false,
+  "output": {
+    "explanation": "refundCapture sent the refund POST without a PayPal-Request-Id header, so if the response was lost and the refund route was retried, PayPal would treat it as a new refund request. It now sends a PayPal-Request-Id that defaults to `refund-${captureId}`, so a retry of the same full refund reuses the id and PayPal returns the original result instead of processing it again. An optional requestId parameter lets future partial-refund callers pass an id taken from their own refund record. The only current caller, the refund route, refunds the full order total, so it needs no change.",
+    "edits": [
+      {
+        "file": "paypal.js",
+        "find": "// Refund a captured payment via the Payments v2 API.\nexport async function refundCapture(captureId, amount) {\n  const accessToken = await generateAccessToken();\n  const response = await fetch(`${base}/v2/payments/captures/${captureId}/refund`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n    },",
+        "replace": "// Refund a captured payment via the Payments v2 API.\n// The default request id is derived from the capture so a retried full refund\n// reuses it and PayPal returns the original result instead of refunding again.\n// Partial refunds must pass an id from their own refund record instead.\nexport async function refundCapture(captureId, amount, requestId = `refund-${captureId}`) {\n  const accessToken = await generateAccessToken();\n  const response = await fetch(`${base}/v2/payments/captures/${captureId}/refund`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n      \"PayPal-Request-Id\": requestId,\n    },"
+      }
+    ],
+    "notes": ""
+  }
+}

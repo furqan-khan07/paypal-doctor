@@ -1,8 +1,8 @@
 {
   "key": "scan",
   "model": "claude-opus-5-5",
-  "handWritten": true,
-  "note": "Written by hand to match what the review pass is expected to return for the demo store, so the demo runs without an API key. Re-record with: paypal-doctor scan demo-store --llm record",
+  "recordedAt": "2026-11-05T08:15:27.540Z",
+  "handWritten": false,
   "output": {
     "findings": [
       {
@@ -10,7 +10,15 @@
         "file": "server.js",
         "line": 85,
         "evidence": "event.event_type === \"PAYMENT.CAPTURE.PENDING\"",
-        "message": "The webhook handler treats PAYMENT.CAPTURE.PENDING the same as PAYMENT.CAPTURE.COMPLETED and marks the order paid. PENDING means PayPal has not credited the funds yet (eCheck, payment review); the capture can still be denied, and the shop has shipped by then.",
+        "message": "The webhook marks the order \"paid\" on PAYMENT.CAPTURE.PENDING, but no funds have been credited yet (eCheck, review or receiving preferences). The goods ship, and the capture can later be denied, so the merchant is never paid.",
+        "confidence": "high"
+      },
+      {
+        "ruleId": "missing-request-id",
+        "file": "paypal.js",
+        "line": 67,
+        "evidence": "const response = await fetch(`${base}/v1/payments/capture/${captureId}/refund`, {",
+        "message": "The refund POST sends no PayPal-Request-Id header. If the response is lost and the refund route is retried, PayPal treats it as a new refund request instead of returning the original result.",
         "confidence": "high"
       }
     ]

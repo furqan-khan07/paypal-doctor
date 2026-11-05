@@ -158,6 +158,7 @@ export const PROBES = {
     title: 'PAYMENT.CAPTURE.PENDING is not treated as paid',
     routes: ['createOrder', 'webhook', 'orderStatus'],
     async run(run) {
+      if (run.upstream?.kind !== 'mock') run.note('Only PayPal can sign an event, and it only signs ones it delivers itself, so this probe runs on the local mock.');
       const app = await run.app({ useMock: true });
       const { orderId } = await checkout(run, app);
       if (!run.check('store created a PayPal order', !!orderId)) return;
@@ -222,7 +223,7 @@ export const PROBES = {
       const refunds = app.trace().filter(isRefundV2);
       const ids = refunds.map((e) => header(e, 'PayPal-Request-Id'));
       run.check('refund requests carry a PayPal-Request-Id', refunds.length >= 2 && ids.every(Boolean), ids.map((i) => i || '(none)').join(', '));
-      run.check('the retry reuses the same PayPal-Request-Id', ids.length >= 2 && ids[0] === ids[1], ids.join(' vs '));
+      run.check('the retry reuses the same PayPal-Request-Id', ids.length >= 2 && ids[0] && ids[0] === ids[1], ids.length >= 2 ? `${ids[0] || '(none)'} vs ${ids[1] || '(none)'}` : ids.join(' vs '));
       run.check('the retried refund succeeds', second.status < 300, `HTTP ${second.status}`);
     },
   },

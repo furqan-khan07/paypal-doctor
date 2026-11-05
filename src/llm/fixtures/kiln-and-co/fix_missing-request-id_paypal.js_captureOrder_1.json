@@ -1,15 +1,15 @@
 {
   "key": "fix|missing-request-id|paypal.js|captureOrder|1",
   "model": "claude-opus-5-5",
-  "handWritten": true,
-  "note": "Hand-written stand-in for a model response so the demo runs without an API key. Re-record with --llm record.",
+  "recordedAt": "2026-11-05T08:16:54.421Z",
+  "handWritten": false,
   "output": {
-    "explanation": "Capture had no PayPal-Request-Id. When the capture response got lost and the buyer's browser retried, PayPal saw a second capture, answered ORDER_ALREADY_CAPTURED, and the shop never recorded a payment it had actually taken. The header is now derived from the order id, so a retried capture gets the original result back.",
+    "explanation": "captureOrder POSTed to /v2/checkout/orders/{id}/capture without a PayPal-Request-Id header. If the response was lost and the call was retried, PayPal saw a brand-new request instead of replaying the original result. The capture call now sends a PayPal-Request-Id derived from the order (`capture-${orderID}`), so every retry for the same order reuses the same key and gets back the original capture outcome rather than a duplicate attempt or an ORDER_ALREADY_CAPTURED error.",
     "edits": [
       {
         "file": "paypal.js",
-        "find": "  const response = await fetch(`${base}/v2/checkout/orders/${orderID}/capture`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n    },",
-        "replace": "  const response = await fetch(`${base}/v2/checkout/orders/${orderID}/capture`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n      // derived from the order, so a retried capture returns the original\n      // result instead of ORDER_ALREADY_CAPTURED\n      \"PayPal-Request-Id\": `capture-${orderID}`,\n    },"
+        "find": "export async function captureOrder(orderID) {\n  const accessToken = await generateAccessToken();\n  const response = await fetch(`${base}/v2/checkout/orders/${orderID}/capture`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n    },\n  });",
+        "replace": "// The request id is derived from the order so a retried capture reuses it and\n// PayPal returns the original result instead of processing it again.\nexport async function captureOrder(orderID) {\n  const accessToken = await generateAccessToken();\n  const response = await fetch(`${base}/v2/checkout/orders/${orderID}/capture`, {\n    method: \"POST\",\n    headers: {\n      \"Content-Type\": \"application/json\",\n      Authorization: `Bearer ${accessToken}`,\n      \"PayPal-Request-Id\": `capture-${orderID}`,\n    },\n  });"
       }
     ],
     "notes": ""

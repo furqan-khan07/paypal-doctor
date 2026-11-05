@@ -1,20 +1,20 @@
 {
   "key": "fix|amount-formatting|paypal.js|createOrder|1",
   "model": "claude-opus-5-5",
-  "handWritten": true,
-  "note": "Hand-written stand-in for a model response so the demo runs without an API key. Re-record with --llm record.",
+  "recordedAt": "2026-11-05T08:16:33.483Z",
+  "handWritten": false,
   "output": {
-    "explanation": "amount.value was String(total) on a floating-point sum, so a cart of three $0.10 stickers was sent as \"0.30000000000000004\" and PayPal rejected the order with DECIMAL_PRECISION. A small helper now rounds in minor units and formats with the currency's decimal places (two for USD, zero for JPY, HUF and TWD) before the value goes to PayPal.",
+    "explanation": "The order total was summed in floating point and sent to PayPal as `String(total)`. A cart such as 3 x $0.10 stickers became \"0.30000000000000004\", which PayPal rejects with DECIMAL_PRECISION. The route now sums line totals in integer cents and converts back to dollars once, and createOrder formats amount.value as a two-decimal string for USD. Carts with fractional prices now check out, and the stored total and refund amount come from the same clean figure.",
     "edits": [
       {
-        "file": "paypal.js",
-        "find": "export async function createOrder(total) {",
-        "replace": "// PayPal wants amount.value as a string with the currency's decimal places\n// (0 for JPY, HUF and TWD, 2 for everything else). Round in minor units so\n// float noise like 0.30000000000000004 never reaches the API.\nconst ZERO_DECIMAL_CURRENCIES = new Set([\"JPY\", \"HUF\", \"TWD\"]);\nfunction toPayPalValue(amount, currency) {\n  const digits = ZERO_DECIMAL_CURRENCIES.has(currency) ? 0 : 2;\n  const minor = Math.round(amount * 10 ** digits);\n  return (minor / 10 ** digits).toFixed(digits);\n}\n\nexport async function createOrder(total) {"
+        "file": "server.js",
+        "find": "    const total = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);",
+        "replace": "    // Sum in integer cents so float drift (e.g. 3 x 0.10) never reaches PayPal.\n    const totalCents = lines.reduce((sum, line) => sum + Math.round(line.price * 100) * line.quantity, 0);\n    const total = totalCents / 100;"
       },
       {
         "file": "paypal.js",
-        "find": "          currency_code: \"USD\",\n          value: String(total),",
-        "replace": "          currency_code: \"USD\",\n          value: toPayPalValue(total, \"USD\"),"
+        "find": "          value: String(total),",
+        "replace": "          // USD uses 2 decimal places; PayPal expects the value as a string.\n          value: Number(total).toFixed(2),"
       }
     ],
     "notes": ""

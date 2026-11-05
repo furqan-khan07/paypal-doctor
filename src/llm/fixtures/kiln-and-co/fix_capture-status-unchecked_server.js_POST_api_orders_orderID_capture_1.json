@@ -1,17 +1,17 @@
 {
   "key": "fix|capture-status-unchecked|server.js|POST /api/orders/:orderID/capture|1",
   "model": "claude-opus-5-5",
-  "handWritten": true,
-  "note": "Hand-written stand-in for a model response so the demo runs without an API key. Re-record with --llm record.",
+  "recordedAt": "2026-11-05T08:17:47.464Z",
+  "handWritten": false,
   "output": {
-    "explanation": "The capture route marked the order paid whenever the order-level status was COMPLETED. PayPal reports the order as COMPLETED even when the capture inside it is PENDING (funds not credited yet) or DECLINED. The route now reads purchase_units[0].payments.captures[0].status and only marks the order paid on COMPLETED; PENDING is recorded as pending and anything else as declined.",
+    "explanation": "The capture route marked the store order paid whenever the order-level status was COMPLETED, but PayPal can return that while the capture itself is PENDING (eCheck, risk review, receiving preferences) or DECLINED. The route now reads purchase_units[0].payments.captures[0].status and marks the order paid only when the capture is COMPLETED. A PENDING capture is recorded as \"pending\" with its capture id, so it can wait for PAYMENT.CAPTURE.COMPLETED. A DECLINED or FAILED capture leaves the order unpaid. The JSON response passed back to the browser is unchanged.",
     "edits": [
       {
         "file": "server.js",
         "find": "    const order = orders.get(orderID);\n    if (order && jsonResponse.status === \"COMPLETED\") {\n      order.status = \"paid\";\n      order.captureId = jsonResponse.purchase_units?.[0]?.payments?.captures?.[0]?.id;\n    }",
-        "replace": "    const order = orders.get(orderID);\n    // The order can be COMPLETED while the capture in it is PENDING or DECLINED,\n    // so the capture status is what decides whether we got paid.\n    const capture = jsonResponse.purchase_units?.[0]?.payments?.captures?.[0];\n    if (order && capture) {\n      order.captureId = capture.id;\n      if (capture.status === \"COMPLETED\") order.status = \"paid\";\n      else if (capture.status === \"PENDING\") order.status = \"pending\";\n      else order.status = \"declined\";\n    }"
+        "replace": "    const order = orders.get(orderID);\n    // The order can be COMPLETED while the capture itself is PENDING or DECLINED,\n    // so only the capture status decides whether money actually arrived.\n    const capture = jsonResponse.purchase_units?.[0]?.payments?.captures?.[0];\n    if (order && capture?.status === \"COMPLETED\") {\n      order.status = \"paid\";\n      order.captureId = capture.id;\n    } else if (order && capture?.status === \"PENDING\") {\n      // Funds not credited yet; wait for PAYMENT.CAPTURE.COMPLETED.\n      order.status = \"pending\";\n      order.captureId = capture.id;\n    }\n    // DECLINED / FAILED (or no capture at all): leave the order unpaid."
       }
     ],
-    "notes": ""
+    "notes": "The receipt page (public/, not shown) polls GET /api/store-orders/:orderID and can now see a new status value, \"pending\". Check that it handles this without treating it as paid or as an error. The webhook handler still marks orders paid on PAYMENT.CAPTURE.PENDING. That is tracked as a separate finding. Until it is fixed, a pending capture that later fires the webhook will still be marked paid."
   }
 }

@@ -18,13 +18,14 @@ scan  ──►  fix  ──►  verify
 
 **Scan.** Two passes. First, AST detectors (Babel parser, plus a small data-flow pass that follows a value across functions and files) for nine rules, each tied to a PayPal doc. Then a Claude review pass gets the PayPal-related files plus the static findings and looks for what they missed. Its findings are only kept if they name a known rule and quote evidence that's really on that line.
 
-**Fix.** For each finding, Claude writes a minimal patch (find/replace edits) and a plain-English explanation. Patches form a chain: patch N is written against the code with patches 1..N-1 already applied, so each one can be tested on its own. A patch that doesn't apply cleanly, or doesn't parse afterwards, gets one retry with the error, then it's rejected.
+**Fix.** For each finding, Claude writes a minimal patch (find/replace edits) and a plain-English explanation. It sees the file with the bug, what that file imports and what imports it, plus the app's routes and a sample request. Patches form a chain: patch N is written against the code with patches 1..N-1 already applied, so each one can be tested on its own. A patch that doesn't apply cleanly, or doesn't parse afterwards, gets one retry with the error.
 
 **Verify.** For each patch, the app is copied twice (before and after the patch), started with an interceptor preloaded, and driven through a scripted checkout:
 
 - The **probe** plays the buyer with no browser: it approves the order through `confirm-payment-source` using PayPal's published sandbox test card, then lets the app capture.
 - The **interceptor** records every PayPal call (credentials reduced to a fingerprint, card numbers masked). It can reroute hosts, and it can inject faults: drop a response after PayPal processed it, rewrite a capture to `PENDING`, add PayPal's negative-testing header. It refuses to let anything reach the live API.
-- A patch is **verified** when the probe fails before it (the bug is reproduced) and passes after it. Then every probe runs once more on the fully patched app, and the static scan runs again, as a regression pass.
+- A patch is **verified** when the probe fails before it (the bug is reproduced) and passes after it. This happens as soon as the patch is written, before the next one. A patch that fails goes back to Claude once with the failing checks. If it still fails it's left out, so it can't take the rest of the chain down with it, and the dashboard shows it as left out.
+- Then every probe runs once more on the fully patched app, and the static scan runs again, as a regression pass.
 
 **Dashboard.** An AG Grid page with the findings, their patches and the before/after proof, plus a second grid with every PayPal request the probes made: status, `PayPal-Request-Id`, what PayPal said, which fault was injected, and the debug id. Both grids export to CSV.
 
@@ -57,7 +58,7 @@ npm run demo
 
 That scans the demo store in `demo-store/` (a small shop with ten bugs seeded on purpose), applies the patches, verifies each one against a local PayPal mock, and serves the dashboard at http://localhost:4417.
 
-Without an `ANTHROPIC_API_KEY`, the Claude steps replay recorded answers from `src/llm/fixtures/`. The dashboard marks those as recorded, and the ones shipped for the demo are labelled hand-written. Without PayPal keys, the probes talk to the mock in `src/mock-paypal/`.
+`npm run demo` replays what Claude answered in a real run, recorded in `src/llm/fixtures/`, and the dashboard says so at the top. Nothing in there is hand-written any more. The probes talk to the mock in `src/mock-paypal/`.
 
 ## With real keys: Claude + the PayPal sandbox
 
@@ -79,11 +80,14 @@ npm run demo:real
 This is `paypal-doctor run demo-store --mode sandbox --llm live --dashboard`: live Claude calls for the review and the patches, and real sandbox orders, captures and refunds for the probes. A few checks always run on the mock, and the dashboard says which:
 
 - the "a correctly signed webhook is accepted" check, because only PayPal can sign an event, and it only does that when delivering to a public URL;
+- the `PAYMENT.CAPTURE.PENDING` webhook probe, for the same reason;
 - the credentials probe, so fake credentials never get sent to PayPal.
 
 If `PAYPAL_WEBHOOK_ID` is empty, the doctor creates (or reuses) a webhook on your sandbox app pointing at `https://example.com/paypal-doctor-probe`. It needs a webhook id to call verify-webhook-signature.
 
 To save the live answers as fixtures for offline demos, run with `--llm record` instead of `live`.
+
+The first real run on the demo store verified 3 of 11 patches, and that was the doctor's fault. The second verified 11 of 11, for about $0.51 of Claude. [docs/real-runs.md](docs/real-runs.md) has both, including what went wrong and what these runs don't show.
 
 ## Using it on your own app
 

@@ -76,6 +76,7 @@ function renderNotice(r) {
   const parts = [];
   const handWritten = r?.findings?.some((f) => f.llm?.handWritten || f.fix?.handWritten);
   if (handWritten) parts.push('The Claude steps on this page are hand-written fixtures, not model output.');
+  else if (r?.fix?.llmMode === 'replay') parts.push(`The Claude steps were replayed from a recorded ${r.fix.model} run, not called live.`);
   if (r?.verify?.upstream === 'mock') parts.push('Verification ran against the local PayPal mock, not the sandbox.');
   el.hidden = parts.length === 0;
   el.textContent = parts.length ? `Demo data: ${parts.join(' ')} Add keys to .env and run with --mode sandbox --llm live for the real thing.` : '';
@@ -186,13 +187,15 @@ function renderVitals() {
   const failed = f.filter((x) => x.fix?.status === 'ready' && x.verification?.status === 'failed').length;
   const final = r?.verify?.final;
   const finalGreen = final ? final.probes.filter((p) => p.passed).length : 0;
+  const onSandbox = (r?.traffic || []).filter((t) => t.upstream === 'sandbox').length;
+  const onMock = (r?.traffic || []).filter((t) => t.upstream === 'mock').length;
   const tiles = [
     { k: 'Findings', v: f.length, s: f.length ? `${bySev('critical')} critical · ${bySev('high')} high · ${bySev('medium')} medium` : 'run a scan', cls: f.length ? 'bad' : '' },
     { k: f.some((x) => x.llm?.handWritten) ? 'From LLM fixture' : 'Found by Claude', v: f.filter((x) => x.source === 'llm').length, s: r?.scan ? `review pass: ${r.scan.llm.mode === 'replay' ? 'replayed' : 'live'}` : '-' },
     { k: 'Patched', v: r?.fix ? `${patched}/${f.length}` : '-', s: r?.fix ? `patches: ${f.some((x) => x.fix?.handWritten) ? 'hand-written fixtures' : r.fix.llmMode === 'replay' ? 'recorded Claude output' : r.fix.model}` : 'not yet' },
     { k: 'Verified', v: r?.verify ? `${verified}/${patched}` : '-', s: r?.verify ? (failed ? `${failed} failed` : leftOut ? `${leftOut} failed and left out` : 'bug reproduced, then fixed') : 'not yet', cls: r?.verify ? (failed || leftOut ? 'bad' : 'ok') : '' },
     { k: 'Regression pass', v: final ? `${finalGreen}/${final.probes.length}` : '-', s: final ? (final.remainingFindings.length ? `${final.remainingFindings.length} left in re-scan` : 're-scan clean') : 'all patches applied', cls: final ? (final.allPassed ? 'ok' : 'warn') : '' },
-    { k: 'PayPal calls', v: r?.traffic?.length || 0, s: r?.verify ? `against ${r.verify.upstream === 'sandbox' ? 'the sandbox' : 'the local mock'}` : '-', cls: '' },
+    { k: 'PayPal calls', v: onSandbox || r?.traffic?.length || 0, s: r?.verify ? (onSandbox ? `to the sandbox${onMock ? `, plus ${onMock} on the local mock` : ''}` : 'to the local mock') : '-', cls: '' },
   ];
   $('#vitals').innerHTML = tiles.map((t) => `<div class="vital ${t.cls || ''}"><div class="k">${esc(t.k)}</div><div class="v">${esc(t.v)}</div><div class="s">${esc(t.s)}</div></div>`).join('');
   const target = r?.target;
@@ -279,7 +282,12 @@ function renderDetail() {
   const prov = [];
   if (f.source === 'llm') prov.push(f.llm?.handWritten ? 'from a hand-written stand-in for the Claude review pass' : `found by the Claude review pass${f.llm?.from === 'fixture' ? ' (replayed from a recorded response)' : ''}`);
   if (fix?.files?.length) prov.push(`patch ${fix.source === 'fixture' ? `replayed from a ${fix.handWritten ? 'hand-written fixture' : `recorded ${fix.model} response`}` : `written live by ${fix.model}`}${fix.failedAttempts?.length ? ', repaired after a failed attempt' : ''}`);
-  if (v) prov.push(`verified against ${v.mode === 'sandbox' ? 'the PayPal sandbox' : 'the local mock'} at ${new Date(v.at).toLocaleString()}`);
+  if (v) {
+    // A sandbox run still uses the mock where the sandbox can't do the job, so say which this proof used.
+    const used = v.after?.upstream?.length ? v.after.upstream : [v.mode === 'sandbox' ? 'sandbox' : 'mock'];
+    const where = !used.includes('sandbox') ? 'the local mock' : used.includes('mock') ? 'the PayPal sandbox, with the signed-event check on the local mock' : 'the PayPal sandbox';
+    prov.push(`${fix?.status === 'rejected' ? 'failed' : 'verified'} against ${where} at ${new Date(v.at).toLocaleString()}`);
+  }
   if (prov.length) parts.push(`<p class="provenance">${esc(prov.join(' · '))}</p>`);
 
   el.innerHTML = parts.join('\n');

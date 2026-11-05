@@ -1,17 +1,17 @@
 {
   "key": "fix|client-supplied-amount|server.js|POST /api/orders|1",
   "model": "claude-opus-5-5",
-  "handWritten": true,
-  "note": "Hand-written stand-in for a model response so the demo runs without an API key. Re-record with --llm record.",
+  "recordedAt": "2026-11-05T08:16:20.160Z",
+  "handWritten": false,
   "output": {
-    "explanation": "The order total was summed from item.price values that come straight from the browser's cart, so anyone could edit localStorage or the request and pay $0.01 for a $42 pour-over set. The server now takes only the sku and quantity from the client, looks each price up in CATALOG, and rejects unknown items or bad quantities with a 400.",
+    "explanation": "POST /api/orders added up the order total from the price field the browser sent, so a buyer could edit the cart in devtools and pay any amount they liked. The route now takes only sku and quantity from each cart item, looks the price and name up in the server-side CATALOG, and computes the total from those. Unknown SKUs and quantities that aren't positive integers get a 400 before anything is sent to PayPal. The stored order keeps the server-built cart lines rather than the client's copy, so the refund route and the status endpoint also use the trusted total.",
     "edits": [
       {
         "file": "server.js",
-        "find": "    const { cart } = req.body;\n    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);",
-        "replace": "    const { cart } = req.body;\n    // Only the sku and quantity come from the browser; prices come from our catalog.\n    const lines = (Array.isArray(cart) ? cart : []).map((item) => ({\n      product: CATALOG[item.sku],\n      quantity: Number.parseInt(item.quantity, 10),\n    }));\n    if (lines.length === 0 || lines.some((l) => !l.product || !(l.quantity > 0))) {\n      return res.status(400).json({ error: \"Cart has an unknown item or a bad quantity.\" });\n    }\n    const total = lines.reduce((sum, l) => sum + l.product.price * l.quantity, 0);"
+        "find": "// Create a PayPal order for whatever is in the browser's cart.\napp.post(\"/api/orders\", async (req, res) => {\n  try {\n    const { cart } = req.body;\n    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);\n    const { jsonResponse, httpStatusCode } = await createOrder(total);\n    if (jsonResponse.id) {\n      orders.set(jsonResponse.id, { id: jsonResponse.id, status: \"created\", cart, total });\n    }",
+        "replace": "// Create a PayPal order for the browser's cart. Only sku and quantity are taken\n// from the client; prices come from the server-side catalog.\napp.post(\"/api/orders\", async (req, res) => {\n  try {\n    const { cart } = req.body ?? {};\n    if (!Array.isArray(cart) || cart.length === 0) {\n      return res.status(400).json({ error: \"Cart is empty.\" });\n    }\n    const lines = [];\n    for (const item of cart) {\n      const product = Object.hasOwn(CATALOG, item?.sku) ? CATALOG[item.sku] : null;\n      const quantity = Number(item?.quantity);\n      if (!product || !Number.isInteger(quantity) || quantity < 1) {\n        return res.status(400).json({ error: \"Invalid cart item.\" });\n      }\n      lines.push({ sku: product.sku, name: product.name, price: product.price, quantity });\n    }\n    const total = lines.reduce((sum, line) => sum + line.price * line.quantity, 0);\n    const { jsonResponse, httpStatusCode } = await createOrder(total);\n    if (jsonResponse.id) {\n      orders.set(jsonResponse.id, { id: jsonResponse.id, status: \"created\", cart: lines, total });\n    }"
       }
     ],
-    "notes": ""
+    "notes": "The total is still built with floating-point math (for example, 3 stickers at 0.1 each). That belongs to the separate amount-formatting finding and is left for its own patch. The example request body keeps working; its price and name fields are now ignored."
   }
 }
