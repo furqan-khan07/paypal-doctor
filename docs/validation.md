@@ -51,6 +51,7 @@ PayPal's own samples were in the tuning set, and they mostly leave out `PayPal-R
 
 ## What this doesn't show
 
+- `webhook-unverified` has no correct findings on real code yet. It has no findings left on these 60 repos, and the PayPal webhook handlers I read all do verify, so it has only proved itself on my fixtures and the demo store. These are starred projects, so a real miss would more likely show up further down the list.
 - It covers the static scan only. The Claude review pass and the patches haven't been run on these repos, and the sandbox probes need an app set up to run, so they've only run on the demo store.
 - One person (me) did the triage. "Correct" means the code matches the rule as I read it, and I didn't run any of these apps.
 - Stars are a rough proxy for "real", and these 60 repos include tutorials, SDKs and a few that only mention PayPal in passing.

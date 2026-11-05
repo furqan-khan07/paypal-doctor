@@ -65,8 +65,20 @@ function phaseCell(result, phase) {
 
 function foundBy(f) {
   if (f.source !== 'llm') return '<span class="badge">static</span>';
+  if (f.llm?.handWritten) return '<span class="badge fixture" title="A hand-written stand-in for the Claude review, not model output">fixture</span>';
   const recorded = f.llm?.from === 'fixture';
-  return `<span class="badge llm" title="${recorded ? 'Replayed from a recorded response' : 'Live model call'}">Claude${recorded ? ' · rec' : ''}</span>`;
+  return `<span class="badge llm" title="${recorded ? 'Replayed from a recorded Claude response' : 'Live Claude call'}">Claude${recorded ? ' · rec' : ''}</span>`;
+}
+
+// Says plainly when what's on screen isn't the real thing.
+function renderNotice(r) {
+  const el = $('#notice');
+  const parts = [];
+  const handWritten = r?.findings?.some((f) => f.llm?.handWritten || f.fix?.handWritten);
+  if (handWritten) parts.push('The Claude steps on this page are hand-written fixtures, not model output.');
+  if (r?.verify?.upstream === 'mock') parts.push('Verification ran against the local PayPal mock, not the sandbox.');
+  el.hidden = parts.length === 0;
+  el.textContent = parts.length ? `Demo data: ${parts.join(' ')} Add keys to .env and run with --mode sandbox --llm live for the real thing.` : '';
 }
 
 // ---------- findings grid ----------------------------------------------------
@@ -165,6 +177,7 @@ function refreshTraffic() {
 
 function renderVitals() {
   const r = state.report;
+  renderNotice(r);
   const f = r?.findings || [];
   const bySev = (s) => f.filter((x) => x.severity === s).length;
   const patched = f.filter((x) => x.fix?.status === 'ready').length;
@@ -174,8 +187,8 @@ function renderVitals() {
   const finalGreen = final ? final.probes.filter((p) => p.passed).length : 0;
   const tiles = [
     { k: 'Findings', v: f.length, s: f.length ? `${bySev('critical')} critical · ${bySev('high')} high · ${bySev('medium')} medium` : 'run a scan', cls: f.length ? 'bad' : '' },
-    { k: 'Found by Claude', v: f.filter((x) => x.source === 'llm').length, s: r?.scan ? `review pass: ${r.scan.llm.mode === 'replay' ? 'recorded' : r.scan.llm.mode}` : '-' },
-    { k: 'Patched', v: r?.fix ? `${patched}/${f.length}` : '-', s: r?.fix ? `patches: ${r.fix.llmMode === 'replay' ? 'recorded' : r.fix.model}` : 'not yet' },
+    { k: f.some((x) => x.llm?.handWritten) ? 'From LLM fixture' : 'Found by Claude', v: f.filter((x) => x.source === 'llm').length, s: r?.scan ? `review pass: ${r.scan.llm.mode === 'replay' ? 'replayed' : r.scan.llm.mode}` : '-' },
+    { k: 'Patched', v: r?.fix ? `${patched}/${f.length}` : '-', s: r?.fix ? `patches: ${f.some((x) => x.fix?.handWritten) ? 'hand-written fixtures' : r.fix.llmMode === 'replay' ? 'recorded Claude output' : r.fix.model}` : 'not yet' },
     { k: 'Verified', v: r?.verify ? `${verified}/${patched}` : '-', s: r?.verify ? (failed ? `${failed} failed` : 'bug reproduced, then fixed') : 'not yet', cls: r?.verify ? (failed ? 'bad' : 'ok') : '' },
     { k: 'Regression pass', v: final ? `${finalGreen}/${final.probes.length}` : '-', s: final ? (final.remainingFindings.length ? `${final.remainingFindings.length} left in re-scan` : 're-scan clean') : 'all patches applied', cls: final ? (final.allPassed ? 'ok' : 'warn') : '' },
     { k: 'PayPal calls', v: r?.traffic?.length || 0, s: r?.verify ? `against ${r.verify.upstream === 'sandbox' ? 'the sandbox' : 'the local mock'}` : '-', cls: '' },
@@ -259,7 +272,7 @@ function renderDetail() {
   parts.push(`<ul class="docs">${(f.docs || []).map((d) => `<li><a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.label)}</a></li>`).join('')}</ul>`);
 
   const prov = [];
-  if (f.source === 'llm') prov.push(`found by the Claude review pass${f.llm?.from === 'fixture' ? ' (replayed from a recorded response)' : ''}`);
+  if (f.source === 'llm') prov.push(f.llm?.handWritten ? 'from a hand-written stand-in for the Claude review pass' : `found by the Claude review pass${f.llm?.from === 'fixture' ? ' (replayed from a recorded response)' : ''}`);
   if (fix?.status === 'ready') prov.push(`patch ${fix.source === 'fixture' ? `replayed from a ${fix.handWritten ? 'hand-written' : 'recorded'} fixture` : `written live by ${fix.model}`}`);
   if (v) prov.push(`verified against ${v.mode === 'sandbox' ? 'the PayPal sandbox' : 'the local mock'} at ${new Date(v.at).toLocaleString()}`);
   if (prov.length) parts.push(`<p class="provenance">${esc(prov.join(' · '))}</p>`);
