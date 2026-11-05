@@ -66,19 +66,25 @@ test('@paypal/paypal-server-sdk (TypeScript): the buggy file is flagged, the cor
 });
 
 test('patterns from real codebases: true positives', () => {
-  const { findings } = scanStatic('test/fixtures/real-world');
+  const { findings, parseErrors } = scanStatic('test/fixtures/real-world');
+  assert.deepEqual(parseErrors, [], 'decorators parse');
   const got = summary(findings);
   assert.deepEqual(got, [
+    'amount-formatting@services/paypal-numbers.ts',
     'capture-status-unchecked@services/paypal-http-status.js',
     'deprecated-v1-payments@services/paypal-payouts.js',
     'hardcoded-credentials@config/secrets.js',
     'hardcoded-environment@config/secrets.js',
+    'hardcoded-environment@services/paypal-numbers.ts',
     'missing-request-id@services/paypal-http-status.js',
+    'missing-request-id@services/paypal-wrapper-calls.js',
+    'missing-request-id@services/paypal-wrapper-calls.js',
     'webhook-unverified@routes/index.js',
+    'webhook-unverified@services/nest-paypal.controller.ts',
   ]);
-  const hook = findings.find((f) => f.ruleId === 'webhook-unverified');
+  const hook = findings.find((f) => f.file === 'routes/index.js' && f.ruleId === 'webhook-unverified');
   assert.match(hook.message, /POST \/paypal\/webhook acts on/, 'only the unverified PayPal route, via controller.method');
-  assert.match(findings.find((f) => f.ruleId === 'missing-request-id').message, /new PayPal-Request-Id every time/);
+  assert.match(findings.find((f) => f.file === 'services/paypal-http-status.js' && f.ruleId === 'missing-request-id').message, /new PayPal-Request-Id every time/);
   assert.match(findings.find((f) => f.ruleId === 'deprecated-v1-payments').message, /\/v1\/payments\/sale/);
   assert.match(findings.find((f) => f.ruleId === 'hardcoded-credentials').message, /client_secret/);
 });

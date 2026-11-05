@@ -18,11 +18,14 @@ export function detectDeprecated(ctx) {
     if (paypalFile && (node.type === 'StringLiteral' || node.type === 'TemplateLiteral')) {
       const s = stringValue(node);
       if (s && V1_DEPRECATED.test(s)) {
-        const line = node.loc.start.line;
+        // A long template can hold a whole generated file: point at the line itself.
+        const raw = ctx.code.slice(node.start, node.end);
+        const at = raw.search(V1_DEPRECATED);
+        const line = node.loc.start.line + (at === -1 ? 0 : raw.slice(0, at).split('\n').length - 1);
         if (seenLines.has(line)) return;
         seenLines.add(line);
-        const endpoint = s.replace(/^.*?(\/v1\/payments\/)/, '$1');
-        report('deprecated-v1-payments', node, {
+        const endpoint = s.match(/\/v1\/payments\/[^\s'"`,)]*/)?.[0] || '/v1/payments';
+        ctx.reportAt('deprecated-v1-payments', line, {
           message: `Calls the deprecated v1 Payments API (${endpoint}). PayPal marks /v1/payments as deprecated; use the v2 equivalent.`,
         });
       }

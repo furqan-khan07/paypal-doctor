@@ -4,10 +4,16 @@ import { parse } from '@babel/parser';
 
 const SKIP_KEYS = new Set(['loc', 'start', 'end', 'extra', 'leadingComments', 'trailingComments', 'innerComments', 'range', 'tokens', 'comments']);
 
-export function parseSource(code, filename = 'file.js') {
-  const plugins = [];
+// decorators-legacy: without it, every NestJS or TypeORM file fails to parse.
+function pluginsFor(filename) {
+  const plugins = ['decorators-legacy'];
   if (/\.tsx?$/.test(filename) || /\.[cm]ts$/.test(filename)) plugins.push('typescript');
   if (/\.(jsx|tsx|js|mjs|cjs)$/.test(filename)) plugins.push('jsx');
+  return plugins;
+}
+
+export function parseSource(code, filename = 'file.js') {
+  const plugins = pluginsFor(filename);
   return parse(code, {
     sourceType: 'unambiguous',
     errorRecovery: true,
@@ -249,8 +255,5 @@ export function linesAround(code, line, before = 2, after = 4) {
 
 // Throws on any syntax error. Used to reject patches that don't parse.
 export function parseStrict(code, filename = 'file.js') {
-  const plugins = [];
-  if (/\.tsx?$/.test(filename) || /\.[cm]ts$/.test(filename)) plugins.push('typescript');
-  if (/\.(jsx|tsx|js|mjs|cjs)$/.test(filename)) plugins.push('jsx');
-  return parse(code, { sourceType: 'unambiguous', allowAwaitOutsideFunction: true, plugins });
+  return parse(code, { sourceType: 'unambiguous', allowAwaitOutsideFunction: true, plugins: pluginsFor(filename) });
 }

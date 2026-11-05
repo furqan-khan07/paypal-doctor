@@ -3,11 +3,11 @@
 // (Stripe, GitHub...), so a handler only counts if it's visibly about PayPal.
 import { walk, routeOf, memberPath, FUNCTION_TYPES } from '../ast.js';
 
-const VERIFY_MARKERS = /verify-webhook-signature|(verify|validate)\w*(webhook|signature)|createVerify|crypto\.verify|crc32|verification_status|paypal-transmission-sig|transmission_sig/i;
+const VERIFY_MARKERS = /verify-webhook-signature|(verify|validate)\w*(webhook|signature)|(webhook|signature)\w*verif|createVerify|crypto\.verify|crc32|verification_status|paypal-transmission-sig|transmission_sig/i;
 const PAYPAL_MARKERS = /paypal|PAYMENT\.CAPTURE|CHECKOUT\.ORDER|PAYMENT\.SALE|BILLING\.SUBSCRIPTION/i;
 const EVENT_MARKERS = /event_type|eventType|resource_type|PAYMENT\.CAPTURE|CHECKOUT\.ORDER/;
-const HELPER_DEPTH = 3;
-const MAX_HELPERS = 40;
+const HELPER_DEPTH = 4;
+const MAX_HELPERS = 60;
 
 // The text of the handler plus the repo functions it calls (a few levels deep).
 // `delegated` means it hands the request headers to something outside the repo,
@@ -69,6 +69,16 @@ export function detectWebhook(ctx) {
           if (/webhook|notify|ipn|paypal\/events/i.test(route.path) || EVENT_MARKERS.test(text)) {
             handlers.push({ node: resolved.node, code: hCode, at: node, label: `${route.method} ${route.path}`, hint: `${route.path} ${resolved.file}` });
           }
+        }
+      }
+    }
+    // NestJS: @Post('webhook') on a controller method
+    if (node.type === 'ClassMethod' && node.decorators?.length) {
+      for (const d of node.decorators) {
+        const call = d.expression;
+        if (call?.type === 'CallExpression' && call.callee.name === 'Post') {
+          const path = call.arguments[0]?.type === 'StringLiteral' ? call.arguments[0].value : '';
+          if (/webhook|notify|ipn/i.test(path)) handlers.push({ node, code, at: node, label: `POST ${path} (${file})`, hint: `${path} ${file}` });
         }
       }
     }

@@ -91,8 +91,12 @@ export function detectHardcoded(ctx) {
   const { ast, report, isClient, code, file } = ctx;
   let reportedEnv = false;
   const usesServerSdk = /@paypal\/paypal-server-sdk/.test(code);
-  // A file that names both hosts is choosing between them.
-  const knowsBothHosts = SANDBOX_HOST.test(code) && LIVE_HOST.test(code.replace(new RegExp(SANDBOX_HOST.source, 'g'), ''));
+  // A file whose code names both hosts is choosing between them. Comments don't count.
+  const literals = [];
+  walk(ast, (n) => {
+    if (n.type === 'StringLiteral' || n.type === 'TemplateLiteral') literals.push(stringValue(n) || '');
+  });
+  const knowsBothHosts = literals.some((s) => SANDBOX_HOST.test(s)) && literals.some((s) => !SANDBOX_HOST.test(s) && LIVE_HOST.test(s));
   const paypalFile = /paypal/i.test(file) || PAYPAL_FILE.test(code);
 
   walk(ast, (node, ancestors) => {
@@ -118,7 +122,8 @@ export function detectHardcoded(ctx) {
       const bareHostProp = parent?.type === 'ObjectProperty' && /^host(name)?$/i.test(keyName(parent.key) || '') && BARE_HOST.test(s);
       if ((isSandbox || isLive) && (isUrl || bareHostProp) && !/\/sdk\/js/.test(s) && !/www\.paypal/.test(s) && !/\/notifications\/certs/.test(s)) {
         const insideUrlBuild = parent?.type === 'TemplateLiteral' || parent?.type === 'BinaryExpression';
-        const exempt = envFallback(node, parent) || inEnvSwitch(ancestors) || isConfigDefault(node, parent) ||
+        const namedDefault = parent?.type === 'VariableDeclarator' && /default|fallback/i.test(parent.id?.name || '');
+        const exempt = namedDefault || envFallback(node, parent) || inEnvSwitch(ancestors) || isConfigDefault(node, parent) ||
           usedOnlyToParse(node, parent, ancestors, code) || inConfigReader(ancestors, code) || (insideUrlBuild && envFallback(parent, ancestors[ancestors.length - 2]));
         if (!exempt) {
           reportedEnv = true;

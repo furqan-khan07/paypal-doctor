@@ -33,8 +33,33 @@ const PER_CALL_ID = /randomUUID|uuid|nanoid|Date\.now|Math\.random|new Date/i;
 const ORDER_CAPTURE_URL = /\/v2\/checkout\/orders\/[^/]+\/capture\/?$/;
 const PER_CALL_MESSAGE = 'The capture call generates a new PayPal-Request-Id every time it runs, so a retry after a lost response is not recognised as a retry and gets ORDER_ALREADY_CAPTURED. Derive the id from the order id.';
 
-function urlOf(call) {
-  return stringValue(call.urlNode) ?? memberPath(call.urlNode) ?? '';
+function urlOf(call, index, ancestors) {
+  let node = call.urlNode;
+  if (node?.type === 'Identifier') node = index.lookup(node.name, ancestors)?.binding?.init ?? node;
+  return stringValue(node) ?? memberPath(node) ?? '';
+}
+
+// paypalRequest(creds, `/v2/checkout/orders/${id}/capture`, {...}) or this.makeRequest(path, 'POST').
+// The wrapper may add the header itself, so look inside it too.
+function wrapperCall(ctx, node, ancestors) {
+  if (node.type !== 'CallExpression' && node.type !== 'OptionalCallExpression') return null;
+  if (httpCall(node)) return null;
+  const c = node.callee;
+  const name = c.type === 'Identifier' ? c.name : (c.type === 'MemberExpression' || c.type === 'OptionalMemberExpression') && !c.computed ? c.property.name : null;
+  if (!name) return null;
+  let url = null;
+  for (const a of node.arguments) {
+    const s = stringValue(a);
+    if (s && (MONEY_POSTS.some((m) => m.re.test(s)))) url = s;
+  }
+  if (!url) return null;
+  const { index, code } = ctx;
+  const fn = enclosingFunction(ancestors);
+  const argsText = node.arguments.map((a) => code.slice(a.start, a.end)).join(' ');
+  const scope = fn ? code.slice(fn.start, fn.end) : '';
+  const wrappers = (index.functions.get(name) || []).map((f) => index.files.get(f.file).code.slice(f.node.start, f.node.end)).join('\n');
+  const hasId = /paypal-request-id|paypalRequestId|idempotency/i.test(`${argsText}\n${scope}\n${wrappers}`);
+  return { url, hasId };
 }
 
 function headersHaveRequestId(index, file, headersNode, ancestors) {
@@ -44,7 +69,15 @@ function headersHaveRequestId(index, file, headersNode, ancestors) {
     const found = index.lookup(obj.name, ancestors);
     obj = found?.binding?.init ?? null;
   }
-  if (obj?.type === 'CallExpression' && /Headers$/.test(memberPath(obj.callee) || '')) obj = obj.arguments[0];
+  // new Headers({...}), or const headers = await client.getHeaders() where the helper may add it.
+  const made = obj?.type === 'AwaitExpression' ? obj.argument : obj;
+  if (made?.type === 'NewExpression' && memberPath(made.callee) === 'Headers') {
+    obj = made.arguments[0];
+  } else if (made?.type === 'CallExpression') {
+    const name = memberPath(made.callee)?.split('.').pop();
+    const body = (index.functions.get(name) || []).map((f) => index.files.get(f.file).code.slice(f.node.start, f.node.end)).join('\n');
+    return /paypal-request-id/i.test(body) ? 'present' : 'unknown';
+  }
   if (!obj || obj.type !== 'ObjectExpression') return 'unknown';
   const prop = objectProp(obj, 'paypal-request-id', { ci: true });
   if (prop) {
@@ -64,7 +97,7 @@ export function detectPayments(ctx) {
     // ---- REST calls made with fetch/axios/got ----
     const call = httpCall(node);
     if (call && (call.method === 'POST' || call.method === '?')) {
-      const url = urlOf(call);
+      const url = urlOf(call, index, ancestors);
       const money = MONEY_POSTS.find((m) => m.re.test(url));
       if (money) {
         const op = money.op.replace('$1', url.match(money.re)?.[1] || '');
@@ -83,6 +116,17 @@ export function detectPayments(ctx) {
         }
       }
       if (CAPTURE_URL.test(url)) checkCaptureStatus(ctx, node, ancestors);
+    }
+
+    // ---- the app's own request helper ----
+    const wrapped = wrapperCall(ctx, node, ancestors);
+    if (wrapped) {
+      const money = MONEY_POSTS.find((m) => m.re.test(wrapped.url));
+      if (money && !wrapped.hasId) {
+        const op = money.op.replace('$1', wrapped.url.match(money.re)?.[1] || '');
+        report('missing-request-id', node, { message: `The ${op} call sends no PayPal-Request-Id header, so a retry after a lost response is processed as a brand-new request.` });
+      }
+      if (CAPTURE_URL.test(wrapped.url)) checkCaptureStatus(ctx, node, ancestors);
     }
 
     // ---- @paypal/paypal-server-sdk controller calls ----

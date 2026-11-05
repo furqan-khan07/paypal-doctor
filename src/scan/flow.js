@@ -82,7 +82,7 @@ export class RepoIndex {
     const name = shortName(functionName(fnNode, fnAncestors));
     if (!name) return [];
     const fnFile = [...this.files.entries()].find(([, f]) => fnAncestors[0] === f.ast || fnAncestors[0] === f.ast.program)?.[0];
-    const isLocal = (src) => typeof src === 'string' && src.startsWith('.');
+    const isLocal = (src) => typeof src === 'string' && /^(\.|@\/|~\/|#)/.test(src);
     return (this.calls.get(name) || []).filter((c) => {
       if (c.ancestors.includes(fnNode)) return false;
       const callee = c.node.callee;
@@ -361,6 +361,9 @@ export function amountKind(index, file, expr, ancestors, hops = 0, seen = new Se
       const { binding, scope, scopeAncestors } = found;
       if (binding.kind === 'var' && binding.init && !binding.path?.length) {
         return amountKind(index, file, binding.init, [...scopeAncestors, scope], hops, seen);
+      }
+      if (binding.kind === 'param' && !binding.path?.length && binding.node?.typeAnnotation?.typeAnnotation?.type === 'TSNumberKeyword') {
+        return { kind: 'float', node: expr, why: 'a parameter typed as number' };
       }
       if (binding.kind === 'param' && !binding.path?.length && hops < MAX_HOPS) {
         for (const call of index.callersOf(scope, scopeAncestors)) {
