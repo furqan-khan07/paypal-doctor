@@ -152,7 +152,7 @@ const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt
 const findingBy = (ruleId, test = () => true) => report.findings.find((f) => f.ruleId === ruleId && test(f));
 const row = (f) => ({ title: f.title.slice(0, 18), where: `${f.file}:${f.line}` });
 
-// ---- the shots: durations match VIDEO_SCRIPT.md --------------------------------
+// ---- the shots: durations match the video script --------------------------------
 
 const webhook = findingBy('webhook-unverified');
 const amount = findingBy('client-supplied-amount');
@@ -370,7 +370,7 @@ try {
     // The piped WebM has no duration header; a real MP4 is easier to work with.
     execFileSync(FFMPEG, ['-y', '-hide_banner', '-loglevel', 'error', '-i', raw, '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p', '-r', '24', '-movflags', '+faststart', mp4]);
     fs.rmSync(raw, { force: true });
-    console.log(`Wrote ${path.relative(PROJECT_ROOT, mp4)} (${total}s planned). Next: record the voiceover from VIDEO_SCRIPT.md, then npm run video:merge -- voiceover.m4a`);
+    console.log(`Wrote ${path.relative(PROJECT_ROOT, mp4)} (${total}s planned). Next: record the voiceover, then npm run video:merge -- voiceover.m4a`);
   }
 } finally {
   await browser.close();

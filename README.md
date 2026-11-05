@@ -1,5 +1,7 @@
 # paypal-doctor
 
+[![test](https://github.com/furqan-khan07/paypal-doctor/actions/workflows/test.yml/badge.svg)](https://github.com/furqan-khan07/paypal-doctor/actions/workflows/test.yml)
+
 Finds PayPal integration bugs in a Node.js codebase, writes the fix, and then proves the fix works by running a real checkout against the PayPal sandbox, before and after the patch.
 
 ![paypal-doctor dashboard](docs/dashboard.png)
@@ -130,6 +132,47 @@ node bin/paypal-doctor.js apply path/to/app --yes --commits
 
 The static scan works on any repo, config or not. Probes need the config.
 
+## GitHub Action
+
+The static scan can run on your pull requests and comment what it finds. It needs no keys. It reads your code and never runs it.
+
+```yaml
+name: PayPal scan
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: furqan-khan07/paypal-doctor@main
+```
+
+| Input | Default | What it does |
+|---|---|---|
+| `path` | `.` | Folder to scan, inside the checkout |
+| `comment` | `true` | Comment on the pull request. Findings always go in the job summary. |
+| `fail-on` | `none` | Fail the check on findings at this severity or above (`low`, `medium`, `high`, `critical`), in files the pull request changes |
+| `github-token` | the default token | Used to read which files changed and to comment |
+
+Outputs: `findings` and `findings-in-pr`.
+
+This is only the scan. The patches and the sandbox proof need the full tool, with keys. The scan can be wrong too: on 20 repos it had never seen, 23 of 27 findings were correct ([docs/validation.md](docs/validation.md)).
+
+What it does to stay safe on code it doesn't trust:
+
+- **Nothing from your repo runs.** There's no install, no imports and no scripts from the code it scans. Babel parses the files, and symlinks aren't followed. A scan that hangs gets stopped after 5 minutes, without failing the check.
+- **On a fork,** the default token is read-only, so it can't comment. The findings go in the job summary and as annotations, and the check doesn't fail because of that. Use `pull_request`, not `pull_request_target`.
+- **File names are treated as hostile.** The comment only contains text from the rule table plus an escaped path and a line number. It never quotes your code. A file name can't break out of the comment or issue a workflow command.
+- **It only updates its own comment.** It checks the author, not just the hidden marker, so anyone else's comment is left alone.
+
+I've run it on a real pull request in this repo. The fork path has only been tested against a fake GitHub API so far.
+
 ## CLI
 
 ```
@@ -156,6 +199,8 @@ src/llm/                    Claude client (live / record / replay), fixtures
 src/verify/                 app runner, fetch interceptor, probes, sandbox client
 src/mock-paypal/            local stand-in for the Orders v2 / Payments v2 / Webhooks APIs the probes use
 dashboard/                  AG Grid dashboard + tiny HTTP server (SSE for live logs)
+action.yml                  the GitHub Action, with scripts/action-scan.mjs
+scripts/build-demo.mjs      a static, read-only copy of the dashboard from one recorded run
 demo-store/                 Kiln & Co., the deliberately broken shop
 ```
 
@@ -170,6 +215,7 @@ demo-store/                 Kiln & Co., the deliberately broken shop
 - Secrets are read from `.env` or the environment and never printed. Log lines, the app's own output and traces all go through a redactor. Authorization headers are stored as a 12-character fingerprint.
 - The dashboard only listens on 127.0.0.1 and refuses cross-origin POSTs, so another site can't make it run things.
 - `apply` doesn't touch your code without `--yes`.
+- The read-only demo build (`npm run demo:build`) copies a list of allowed fields from a recorded run, so raw PayPal traffic and credential fingerprints never get in. `npm run demo:audit` checks every byte before anything is published.
 
 ## Limitations
 
@@ -184,7 +230,7 @@ demo-store/                 Kiln & Co., the deliberately broken shop
 npm test
 ```
 
-The tests cover the detectors (true positives and the exemptions that keep them quiet on correct code) and the mock's PayPal behaviour. There's an end-to-end scan → fix → verify of the demo store, the sandbox code path with the mock standing in for PayPal, and the Claude client's request shape against a fake API.
+The tests cover the detectors (true positives and the exemptions that keep them quiet on correct code) and the mock's PayPal behaviour. There's an end-to-end scan → fix → verify of the demo store, the sandbox code path with the mock standing in for PayPal, and the Claude client's request shape against a fake API. The Action runs as a real process against a fake GitHub API, with hostile file names and a read-only token. The demo build is checked for what must never be published.
 
 ## License
 
