@@ -9,6 +9,6 @@ node scripts/build-demo.mjs "$@"
 node scripts/audit-demo.mjs
 
 cd demo-site
-vercel project add paypal-doctor-demo 2>/dev/null || true # Fine if it already exists.
-vercel link --yes --project paypal-doctor-demo
-vercel deploy --prod --yes
+npx --yes vercel@latest project add paypal-doctor-demo 2>/dev/null || true # Fine if it already exists.
+npx --yes vercel@latest link --yes --project paypal-doctor-demo
+npx --yes vercel@latest deploy --prod --yes
