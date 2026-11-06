@@ -127,7 +127,7 @@ body {
 .d-nav-tools .icon { background: transparent; border-color: var(--stick-edge); color: var(--ink); min-width: 40px; min-height: 40px; }
 
 /* first screen */
-.d-hero { padding-top: clamp(8px, 1.6vw, 24px); padding-bottom: clamp(16px, 2.4vw, 32px); overflow-x: clip; }
+.d-hero { padding-top: clamp(8px, 1.6vw, 24px); padding-bottom: clamp(16px, 2.4vw, 32px); }
 .d-display {
   margin: 0;
   font-size: clamp(2.2rem, 4.5vw, 4.1rem);
@@ -150,12 +150,8 @@ body {
   align-items: center;
   background: var(--stick);
   border: 1px solid var(--stick-edge);
-  border-right: 0;
-  border-radius: 5px 0 0 5px;
-  /* The stick runs off the right edge of the page, however wide it is. */
-  --bleed: calc(var(--gutter) + max(0px, (100vw - 1440px) / 2));
-  margin-right: calc(var(--bleed) * -1);
-  padding: clamp(8px, 1vw, 12px) var(--bleed) clamp(8px, 1vw, 12px) clamp(14px, 1.6vw, 22px);
+  border-radius: 5px;
+  padding: clamp(8px, 1vw, 12px) clamp(10px, 1.6vw, 22px) clamp(8px, 1vw, 12px) clamp(14px, 1.6vw, 22px);
 }
 .strip-label { margin: 0; padding-right: 14px; }
 .strip-name { display: block; font-weight: 700; color: var(--ink); }
@@ -261,7 +257,7 @@ body {
 /* the first run, in the same picture */
 .history { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: clamp(24px, 4vw, 64px); align-items: start; }
 .history .strips { margin-top: 22px; }
-.history .strip { margin-right: 0; padding-right: clamp(10px, 1vw, 14px); border-right: 1px solid var(--stick-edge); border-radius: 5px; grid-template-columns: 1fr; gap: 8px; }
+.history .strip { grid-template-columns: 1fr; gap: 8px; }
 .history .pad { cursor: default; aspect-ratio: 1 / 1.2; max-height: 44px; }
 .history .pads { gap: clamp(2px, 0.5vw, 6px); }
 .history-text { margin: 12px 0 0; max-width: 58ch; color: var(--ink-soft); }
@@ -309,7 +305,7 @@ body {
 }
 @media (max-width: 820px) {
   .proof-row { grid-template-columns: 1fr; }
-  .strip { grid-template-columns: 1fr; gap: 8px; padding-left: 12px; }
+  .strip { grid-template-columns: 1fr; gap: 8px; padding-left: 12px; padding-right: 12px; }
   .strip-label { padding-right: 0; display: flex; flex-wrap: wrap; gap: 0 10px; align-items: baseline; }
   .pad { aspect-ratio: 1 / 1.5; max-height: 52px; }
   .history .pad { aspect-ratio: 1 / 1.3; }
