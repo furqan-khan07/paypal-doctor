@@ -11,6 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { saidOf } from '../dashboard/public/said.js';
+import { landingData, landingHtml } from '../dashboard/demo/landing.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_URL = 'https://github.com/furqan-khan07/paypal-doctor';
@@ -74,27 +75,38 @@ export function publicLog(raw, projectRoot = ROOT) {
   }));
 }
 
-export function staticIndex(html, runDate) {
+export function staticIndex(html, landing) {
   const swap = (from, to) => {
     if (!html.includes(from)) throw new Error(`index.html changed, can't find: ${from}`);
     html = html.replace(from, to);
   };
-  const controlsStart = html.indexOf('<div class="controls">');
-  const noticeTag = '<p class="notice" id="notice" hidden></p>';
-  if (controlsStart < 0) throw new Error("index.html changed, can't find the controls");
-  const controlsEnd = html.indexOf('</header>', controlsStart);
-  html = `${html.slice(0, controlsStart)}<div class="controls">
-      <span class="badge llm">Recording</span>
-      <a class="small-btn" href="${REPO_URL}" rel="noopener">Source</a>
-      <button class="icon" id="theme-btn" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
-    </div>
-  ${html.slice(controlsEnd)}`;
   swap('<html lang="en">', '<html lang="en" data-static="recording">');
-  swap('<title>paypal-doctor</title>', `<title>paypal-doctor: recording of a real run</title>
+  swap('<title>paypal-doctor</title>', `<title>paypal-doctor: finds PayPal bugs, writes the fix, proves it</title>
   <meta name="description" content="A read-only recording of paypal-doctor finding PayPal integration bugs in a demo shop, patching them with Claude, and proving each patch against the PayPal sandbox." />`);
+  swap('<link rel="stylesheet" href="style.css" />', `<link rel="preload" href="vendor/fonts/besley-latin-700-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <script src="theme-init.js"></script>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="demo.css" />`);
   swap('src="/vendor/ag-grid-community.min.js"', 'src="vendor/ag-grid-community.min.js"');
-  swap(noticeTag, `<p class="notice recording" id="notice"><strong>This is a read-only recording of one real run, from ${runDate}.</strong> Real Claude, real PayPal sandbox, on a demo shop with bugs seeded on purpose. Nothing runs on this page: there's no backend and there are no keys. This was the second real run. The first verified 3 of 11 patches, because of a fault in the tool. To run it yourself, with no keys: <code>git clone ${REPO_URL}.git</code>, then <code>npm install</code> and <code>npm run demo</code>.</p>`);
-  return html;
+  const start = html.indexOf('<header class="top">');
+  const dashboard = html.indexOf('<section class="vitals"');
+  const scripts = html.indexOf('<script src="app.js"');
+  if (start < 0 || dashboard < 0 || scripts < 0) throw new Error("index.html changed, can't find the page's sections");
+  // The dashboard's markup is reused as it is, under the story. The header and its run controls aren't.
+  const grids = html.slice(dashboard, scripts).trimEnd().replace('<main class="split">', '<div class="split">').replace('</main>', '</div>');
+  return `${html.slice(0, start)}${landing.top}
+
+    <section class="evidence" id="evidence">
+    ${landing.evidenceHead}
+    ${grids}
+    </section>
+  ${landing.bottom}
+
+  <script src="app.js" type="module"></script>
+  <script src="demo.js" type="module"></script>
+</body>
+</html>
+`;
 }
 
 const VERCEL_JSON = {
@@ -116,16 +128,25 @@ function build({ reportPath, logPath, out }) {
   if (report.findings.some((f) => f.llm?.handWritten || f.fix?.handWritten)) throw new Error('That report has hand-written Claude answers.');
   if (report.findings.some((f) => f.source === 'llm' && f.llm?.from === 'fixture') || report.findings.some((f) => f.fix?.source === 'fixture')) throw new Error('That report replayed Claude instead of calling it.');
 
+  // Read before anything is written: if a number can't be backed up, there's no build.
+  const docs = {
+    realRuns: fs.readFileSync(path.join(ROOT, 'docs', 'real-runs.md'), 'utf8'),
+    validation: fs.readFileSync(path.join(ROOT, 'docs', 'validation.md'), 'utf8'),
+  };
+  const landing = landingHtml(landingData(report, docs));
+
   const publicDir = path.join(ROOT, 'dashboard', 'public');
+  const demoDir = path.join(ROOT, 'dashboard', 'demo');
   fs.rmSync(out, { recursive: true, force: true });
-  fs.mkdirSync(path.join(out, 'vendor'), { recursive: true });
+  fs.mkdirSync(path.join(out, 'vendor', 'fonts'), { recursive: true });
   for (const f of ['app.js', 'said.js', 'style.css', 'favicon.svg']) fs.copyFileSync(path.join(publicDir, f), path.join(out, f));
+  for (const f of ['demo.css', 'demo.js', 'theme-init.js']) fs.copyFileSync(path.join(demoDir, f), path.join(out, f));
+  for (const f of fs.readdirSync(path.join(demoDir, 'fonts'))) fs.copyFileSync(path.join(demoDir, 'fonts', f), path.join(out, 'vendor', 'fonts', f));
   const grid = path.join(ROOT, 'node_modules', 'ag-grid-community');
   fs.copyFileSync(path.join(grid, 'dist', 'ag-grid-community.min.js'), path.join(out, 'vendor', 'ag-grid-community.min.js'));
   fs.copyFileSync(path.join(grid, 'LICENSE.txt'), path.join(out, 'vendor', 'AG-GRID-LICENSE.txt'));
 
-  const runDate = new Date(report.verify.at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' });
-  fs.writeFileSync(path.join(out, 'index.html'), staticIndex(fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8'), runDate));
+  fs.writeFileSync(path.join(out, 'index.html'), staticIndex(fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8'), landing));
   fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(publicReport(report)));
   fs.writeFileSync(path.join(out, 'log.json'), JSON.stringify(publicLog(fs.readFileSync(logPath, 'utf8'))));
   fs.writeFileSync(path.join(out, 'vercel.json'), `${JSON.stringify(VERCEL_JSON, null, 2)}\n`);

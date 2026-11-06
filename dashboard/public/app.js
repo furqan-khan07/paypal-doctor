@@ -122,6 +122,14 @@ const findingsGrid = agGrid.createGrid($('#findings-grid'), {
   overlayNoRowsTemplate: '<span class="muted">No findings yet - run a scan.</span>',
 });
 $('#find-filter').oninput = (e) => findingsGrid.setGridOption('quickFilterText', e.target.value);
+if (STATIC) {
+  window.addEventListener('pd:select', (e) => {
+    const node = findingsGrid.getRowNode(e.detail);
+    if (!node) return;
+    findingsGrid.ensureNodeVisible(node);
+    node.setSelected(true);
+  });
+}
 
 // ---------- traffic grid ---------------------------------------------------
 

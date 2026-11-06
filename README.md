@@ -203,6 +203,7 @@ src/mock-paypal/            local stand-in for the Orders v2 / Payments v2 / Web
 dashboard/                  AG Grid dashboard + tiny HTTP server (SSE for live logs)
 action.yml                  the GitHub Action, with scripts/action-scan.mjs
 scripts/build-demo.mjs      a static, read-only copy of the dashboard from one recorded run
+dashboard/demo/             the story section on that page, with its own styles and fonts (both OFL)
 demo-store/                 Kiln & Co., the deliberately broken shop
 ```
 
