@@ -129,6 +129,8 @@ function build({ reportPath, logPath, out }) {
   fs.writeFileSync(path.join(out, 'report.json'), JSON.stringify(publicReport(report)));
   fs.writeFileSync(path.join(out, 'log.json'), JSON.stringify(publicLog(fs.readFileSync(logPath, 'utf8'))));
   fs.writeFileSync(path.join(out, 'vercel.json'), `${JSON.stringify(VERCEL_JSON, null, 2)}\n`);
+  // Vercel's own ignore list doesn't cover every .env file, so don't rely on it.
+  fs.writeFileSync(path.join(out, '.vercelignore'), '.env*\n.vercel\n');
   console.log(`Wrote ${path.relative(ROOT, out)}/ from ${path.relative(ROOT, reportPath)}. Check it with: npm run demo:audit`);
 }
 

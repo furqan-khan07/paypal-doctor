@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { publicReport, publicLog, staticIndex } from '../scripts/build-demo.mjs';
 import { auditDir } from '../scripts/audit-demo.mjs';
 
@@ -84,4 +85,54 @@ test('the audit tells a card number from a float or an order id, and code from d
   assert.deepEqual(inTempDir({ 'report.json': data }, (d) => auditDir(d, { secrets: [] }).hits), []);
   const card = inTempDir({ 'report.json': JSON.stringify({ a: 'card 4012888888881881' }) }, (d) => auditDir(d, { secrets: [] }).hits);
   assert.deepEqual(card.map((h) => h.rule), ['card number']);
+});
+
+test('the audit refuses any .env file by name, without reading it, and catches tokens', () => {
+  const token = 'eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2lnbmF0dXJl';
+  const hits = inTempDir({ '.env.local': `VERCEL_OIDC_TOKEN="${token}"\n`, '.env': 'A=1\n', 'app.js': `const t = "${token}";` }, (d) => auditDir(d, { secrets: [] }).hits);
+  assert.deepEqual(hits.filter((h) => /env file/.test(h.rule)).map((h) => h.rel).sort(), ['.env', '.env.local']);
+  assert.ok(hits.some((h) => h.rel === 'app.js' && h.rule === 'token (JWT)'));
+  assert.ok(!JSON.stringify(hits).includes(token), 'never repeats the token');
+  assert.deepEqual(inTempDir({ '.environment.md': 'fine', 'envelope.js': 'fine' }, (d) => auditDir(d, { secrets: [] }).hits), [], 'only real env files count');
+});
+
+// Runs the real deploy script with a stand-in for npx, so nothing reaches Vercel. The
+// stand-in does what the real link step does: it drops a token in .env.local.
+test('the deploy script never uploads the token, including on a re-run', { skip: process.platform === 'win32' }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'paypal-doctor-deploy-'));
+  try {
+    const bin = path.join(dir, 'bin');
+    fs.mkdirSync(bin);
+    const calls = path.join(dir, 'calls.log');
+    fs.writeFileSync(path.join(bin, 'npx'), `#!/usr/bin/env bash
+case "$*" in
+  *" link "*) printf 'VERCEL_OIDC_TOKEN="eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.c2ln"\\n' > .env.local; printf '.vercel\\n.env*\\n' > .gitignore; mkdir -p .vercel; echo '{}' > .vercel/project.json; echo link >> "${calls}" ;;
+  *" deploy "*) echo "deploy sees: $(ls -A | tr '\\n' ' ')" >> "${calls}"; printf 'x' > .env.local ;;
+esac
+`, { mode: 0o755 });
+    const report = path.join(dir, 'report.json');
+    const log = path.join(dir, 'log');
+    fs.writeFileSync(report, JSON.stringify(raw));
+    fs.writeFileSync(log, '{"level":"info","text":"ok"}\n');
+    const site = path.join(dir, 'site');
+    const run = () => execFileSync('bash', ['scripts/deploy-demo.sh', '--report', report, '--log', log], {
+      env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, PAYPAL_DOCTOR_DEMO_DIR: site },
+      stdio: 'pipe',
+    });
+    run();
+    assert.equal(fs.existsSync(path.join(site, '.env.local')), false, 'gone after the first run');
+    fs.writeFileSync(path.join(site, '.env.local'), 'left over from an earlier link\n');
+    run();
+    const seen = fs.readFileSync(calls, 'utf8').split('\n').filter((l) => l.startsWith('deploy sees'));
+    assert.equal(seen.length, 2);
+    for (const line of seen) {
+      assert.ok(!/\.env/.test(line.replace('.vercelignore', '')), `no env file at upload: ${line}`);
+      assert.match(line, /\.vercelignore/);
+      assert.match(line, /report\.json/);
+    }
+    assert.equal(fs.existsSync(path.join(site, '.env.local')), false, 'cleaned up after deploying too');
+    assert.equal(fs.readFileSync(path.join(site, '.vercelignore'), 'utf8'), '.env*\n.vercel\n');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

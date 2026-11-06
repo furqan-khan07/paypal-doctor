@@ -41,6 +41,14 @@ const DATA_ONLY = [
   ['card number', /(?<![\d.])[3-6]\d{12,18}(?!\d)/g, luhn],
   ['webhook id', /\bWH-[A-Z0-9-]{10,}/g],
 ];
+// Checked on every file, the third-party bundle included.
+const ALL_FILES = [
+  ['token (JWT)', /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}/g],
+  ['Vercel token name', /VERCEL_OIDC_TOKEN/g],
+];
+// A file like this is never published, whatever is in it. Vercel writes a token to
+// .env.local when a folder gets linked.
+const ENV_FILE = /(?:^|\/)\.env(?:$|\.)/;
 const SEEDED_FAKES = ['kiln-sandbox-secret-2024', 'kiln-sandbox-client'];
 const THIRD_PARTY = /^vendor\//;
 const DATA_FILES = new Set(['report.json', 'log.json']);
@@ -77,10 +85,18 @@ export function auditDir(dir, { secrets = envValues() } = {}) {
   const files = [];
   const fakes = {};
   for (const rel of walk(dir)) {
+    if (ENV_FILE.test(rel)) {
+      hits.push({ rel, rule: 'env file, must not be published', count: 1 });
+      continue; // Not even read, so nothing from it can end up in the output.
+    }
     const buf = fs.readFileSync(path.join(dir, rel));
     const text = buf.toString('utf8');
     files.push({ rel, bytes: buf.length, sha256: crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16) });
     for (const [name, value] of secrets) if (text.includes(value)) hits.push({ rel, rule: `value of ${name}`, count: text.split(value).length - 1 });
+    for (const [rule, re] of ALL_FILES) {
+      const count = (text.match(re) || []).length;
+      if (count) hits.push({ rel, rule, count });
+    }
     if (THIRD_PARTY.test(rel)) continue;
     const rules = DATA_FILES.has(rel) ? [...EVERYWHERE, ...DATA_ONLY] : EVERYWHERE;
     for (const [rule, re, keep] of rules) {

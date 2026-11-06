@@ -6,6 +6,8 @@ Finds PayPal integration bugs in a Node.js codebase, writes the fix, and then pr
 
 ![paypal-doctor dashboard](docs/dashboard.png)
 
+A read-only recording of a real run: https://paypal-doctor-demo.vercel.app
+
 ## Why
 
 Most PayPal bugs don't crash anything. They lose money quietly. A webhook handler that believes any JSON posted to it. A cart total summed from prices the browser sent. A capture that came back `PENDING` but got treated as paid. A retry after a timeout that hits `ORDER_ALREADY_CAPTURED`, so the shop never records a payment it actually took.
@@ -215,7 +217,7 @@ demo-store/                 Kiln & Co., the deliberately broken shop
 - Secrets are read from `.env` or the environment and never printed. Log lines, the app's own output and traces all go through a redactor. Authorization headers are stored as a 12-character fingerprint.
 - The dashboard only listens on 127.0.0.1 and refuses cross-origin POSTs, so another site can't make it run things.
 - `apply` doesn't touch your code without `--yes`.
-- The read-only demo build (`npm run demo:build`) copies a list of allowed fields from a recorded run, so raw PayPal traffic and credential fingerprints never get in. `npm run demo:audit` checks every byte before anything is published.
+- The read-only demo build (`npm run demo:build`) copies a list of allowed fields from a recorded run, so raw PayPal traffic and credential fingerprints never get in. `npm run demo:audit` checks every byte before anything is published. `npm run demo:deploy` also removes the token Vercel writes when it links a folder, then audits again right before the upload.
 
 ## Limitations
 
